@@ -102,15 +102,14 @@
         charIdle: new Image(), charWalk: new Image(),
         charO: new Image(), charA: new Image(), charB: new Image(),
         binO: new Image(), binA: new Image(), binB: new Image(),
-        // Sampah
         waso1: new Image(), waso2: new Image(), waso3: new Image(), waso4: new Image(),
         wasa1: new Image(), wasa2: new Image(), wasa3: new Image(), wasa4: new Image(),
         wasb1: new Image(), wasb2: new Image(),
-        // Kendaraan Kiri (Lane Atas)
         wascarl1: new Image(), wascarl2: new Image(), wascarl3: new Image(), wascarl4: new Image(),
-        // Kendaraan Kanan (Lane Bawah)
         wascarr1: new Image(), wascarr2: new Image(), wascarr3: new Image(), wascarr4: new Image()
     };
+    
+    // Inisiasi Source
     assets.bg.src = 'kanvaswas.png';
     assets.charIdle.src = 'waschar.png'; assets.charWalk.src = 'waschar.gif'; 
     assets.charO.src = 'wascharo.png'; assets.charA.src = 'waschara.png'; assets.charB.src = 'wascharb.png';
@@ -124,7 +123,6 @@
     assets.wascarr1.src = 'wascarr1.png'; assets.wascarr2.src = 'wascarr2.png'; assets.wascarr3.src = 'wascarr3.png'; assets.wascarr4.src = 'wascarr4.png';
 
     const TILE_SIZE = 32;
-
     function gridToPx(colStr, rowNum) {
         return { x: (colStr.charCodeAt(0) - 97) * TILE_SIZE, y: (rowNum - 1) * TILE_SIZE };
     }
@@ -138,7 +136,7 @@
     let player = {
         x: gridToPx('f', 9).x, y: gridToPx('f', 9).y,
         targetX: gridToPx('f', 9).x, targetY: gridToPx('f', 9).y,
-        speed: 2.5, carrying: null, isMoving: false, facingRight: true
+        carrying: null, isMoving: false, facingRight: true
     };
 
     let bins = [
@@ -168,37 +166,31 @@
         });
     });
 
-    // --- SISTEM KENDARAAN ---
+    // --- SISTEM KENDARAAN (DIPERBAIKI) ---
     let activeCars = [];
-    const laneAtasY = gridToPx('a', 7).y; // Row 7
-    const laneBawahY = gridToPx('a', 8).y; // Row 8
+    const laneAtasY = gridToPx('a', 7).y;
+    const laneBawahY = gridToPx('a', 8).y;
 
-    // Pengaturan Spawner sesuai data pengguna
+    // Start Time (Offset) Terbaik untuk menghindari penumpukan
     const carSpawners = [
-        // Jalur Kiri / Atas (x = -64, gerak ke kanan)
         { img: assets.wascarl1, y: laneAtasY, speed: 3.5, interval: 30000, nextSpawn: 0 },
-        { img: assets.wascarl2, y: laneAtasY, speed: 3.0, interval: 25000, nextSpawn: 13000 },
-        { img: assets.wascarl3, y: laneAtasY, speed: 2.5, interval: 20000, nextSpawn: 0 },
-        { img: assets.wascarl4, y: laneAtasY, speed: 3.0, interval: 40000, nextSpawn: 7000 },
-        // Jalur Kanan / Bawah (x = 512, gerak ke kiri)
+        { img: assets.wascarl2, y: laneAtasY, speed: 3.0, interval: 25000, nextSpawn: 8000 },
+        { img: assets.wascarl3, y: laneAtasY, speed: 2.5, interval: 20000, nextSpawn: 16000 },
+        { img: assets.wascarl4, y: laneAtasY, speed: 3.0, interval: 40000, nextSpawn: 26000 },
+        
         { img: assets.wascarr1, y: laneBawahY, speed: -3.5, interval: 25000, nextSpawn: 0 },
-        { img: assets.wascarr2, y: laneBawahY, speed: -3.0, interval: 30000, nextSpawn: 17000 },
-        { img: assets.wascarr3, y: laneBawahY, speed: -2.5, interval: 20000, nextSpawn: 0 },
-        { img: assets.wascarr4, y: laneBawahY, speed: -3.0, interval: 45000, nextSpawn: 0 }
+        { img: assets.wascarr2, y: laneBawahY, speed: -3.0, interval: 30000, nextSpawn: 10000 },
+        { img: assets.wascarr3, y: laneBawahY, speed: -2.5, interval: 20000, nextSpawn: 18000 },
+        { img: assets.wascarr4, y: laneBawahY, speed: -3.0, interval: 45000, nextSpawn: 28000 }
     ];
 
-    // --- SISTEM COLLISION ---
+    // --- COLLISION LOGIC ---
     function isSolid(x, y) {
-        let col = Math.round(x / TILE_SIZE);
-        let row = Math.round(y / TILE_SIZE);
-        if (row === 0) return true; 
-        if (col === 15 && row === 3) return true;
-        return false;
+        let col = Math.round(x / TILE_SIZE); let row = Math.round(y / TILE_SIZE);
+        if (row === 0) return true; if (col === 15 && row === 3) return true; return false;
     }
-
     function hasTopWall(x, y) {
-        let col = Math.round(x / TILE_SIZE);
-        let row = Math.round(y / TILE_SIZE);
+        let col = Math.round(x / TILE_SIZE); let row = Math.round(y / TILE_SIZE);
         if ((col === 13 || col === 14) && row === 2) return true; 
         if (col >= 0 && col <= 3 && row === 4) return true; 
         if (col >= 8 && col <= 15 && row === 4) return true; 
@@ -209,7 +201,6 @@
 
     // --- KONTROL INPUT ---
     function setKey(k, val) { keys[k] = val; }
-
     window.addEventListener('keydown', (e) => {
         if (e.key === 'w' || e.key === 'ArrowUp') setKey('w', true);
         if (e.key === 's' || e.key === 'ArrowDown') setKey('s', true);
@@ -242,39 +233,32 @@
     btnAct.addEventListener('mouseup', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
     btnAct.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
 
-    function showText(text, x, y) {
-        floatingTexts.push({ text: text, x: x + 16, y: y, life: 60 });
-    }
-    function checkDistance(x1, y1, x2, y2) {
-        return Math.sqrt(Math.pow((x1+16) - (x2+16), 2) + Math.pow((y1+16) - (y2+16), 2));
-    }
+    function showText(text, x, y) { floatingTexts.push({ text: text, x: x + 16, y: y, life: 60 }); }
+    function checkDistance(x1, y1, x2, y2) { return Math.sqrt(Math.pow((x1+16) - (x2+16), 2) + Math.pow((y1+16) - (y2+16), 2)); }
 
     // --- UPDATE LOOP ---
     function update() {
         if (!gameStartTime) gameStartTime = Date.now();
         let now = Date.now() - gameStartTime;
 
-        // Logika Spawn Mobil
+        // Logika Spawn Mobil (Dengan Anti-Burst)
         carSpawners.forEach(s => {
             if (now >= s.nextSpawn) {
-                activeCars.push({
-                    img: s.img,
-                    x: s.speed > 0 ? -64 : canvas.width,
-                    y: s.y,
-                    speed: s.speed
-                });
-                s.nextSpawn += s.interval;
+                activeCars.push({ img: s.img, x: s.speed > 0 ? -64 : canvas.width, y: s.y, speed: s.speed });
+                // Melompati waktu spawn yang tertinggal agar mobil tidak menumpuk
+                while (s.nextSpawn <= now) { s.nextSpawn += s.interval; }
             }
         });
 
-        // Logika Pergerakan Mobil
         for (let i = activeCars.length - 1; i >= 0; i--) {
             let car = activeCars[i];
             car.x += car.speed;
-            // Hapus mobil jika sudah keluar layar (Lebar mobil 64px)
-            if (car.speed > 0 && car.x > canvas.width) activeCars.splice(i, 1);
-            else if (car.speed < 0 && car.x < -64) activeCars.splice(i, 1);
+            if (car.speed > 0 && car.x > canvas.width + 64) activeCars.splice(i, 1);
+            else if (car.speed < 0 && car.x < -128) activeCars.splice(i, 1);
         }
+
+        // Kecepatan Dinamis: 2.0 jika bawa tong, 2.5 jika tidak
+        let currentSpeed = player.carrying !== null ? 2.0 : 2.5;
 
         // Logika Gerak Player
         if (!player.isMoving) {
@@ -299,15 +283,14 @@
             let dx = player.targetX - player.x;
             let dy = player.targetY - player.y;
 
-            if (Math.abs(dx) <= player.speed) player.x = player.targetX;
-            else player.x += Math.sign(dx) * player.speed;
+            // Menerapkan currentSpeed
+            if (Math.abs(dx) <= currentSpeed) player.x = player.targetX;
+            else player.x += Math.sign(dx) * currentSpeed;
 
-            if (Math.abs(dy) <= player.speed) player.y = player.targetY;
-            else player.y += Math.sign(dy) * player.speed;
+            if (Math.abs(dy) <= currentSpeed) player.y = player.targetY;
+            else player.y += Math.sign(dy) * currentSpeed;
 
-            if (player.x === player.targetX && player.y === player.targetY) {
-                player.isMoving = false;
-            }
+            if (player.x === player.targetX && player.y === player.targetY) player.isMoving = false;
         }
 
         // Logika Action
@@ -319,9 +302,8 @@
                 for (let bin of bins) {
                     if (checkDistance(player.x, player.y, bin.px, bin.py) < 10) {
                         interacted = true;
-                        if (player.carrying === bin.type) {
-                            player.carrying = null; bin.active = true;
-                        } else {
+                        if (player.carrying === bin.type) { player.carrying = null; bin.active = true; } 
+                        else {
                             if (player.carrying !== null) {
                                 let oldBin = bins.find(b => b.type === player.carrying);
                                 if (oldBin) oldBin.active = true;
@@ -336,22 +318,15 @@
                     for (let item of itemsMap) {
                         if (item.active && checkDistance(player.x, player.y, item.x, item.y) < 10) {
                             interacted = true;
-                            if (player.carrying === null) {
-                                showText("Ambil tongnya dulu!", player.x, player.y);
-                            } else if (player.carrying === item.type) {
-                                item.active = false; 
-                                showText("Sip!", player.x, player.y);
-                            } else {
-                                showText("Jangan disatukan!", player.x, player.y);
-                            }
+                            if (player.carrying === null) showText("Ambil tongnya dulu!", player.x, player.y);
+                            else if (player.carrying === item.type) { item.active = false; showText("Sip!", player.x, player.y); } 
+                            else showText("Jangan disatukan!", player.x, player.y);
                             break;
                         }
                     }
                 }
 
-                if (!interacted && player.carrying === null) {
-                    showText("Ambil tongnya dulu!", player.x, player.y);
-                }
+                if (!interacted && player.carrying === null) showText("Ambil tongnya dulu!", player.x, player.y);
             }
         }
     }
@@ -359,32 +334,17 @@
     // --- DRAW LOOP ---
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         if (assets.bg.complete) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
 
-        itemsMap.forEach(item => {
-            if (item.active && item.img.complete) {
-                ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE);
-            }
-        });
+        itemsMap.forEach(item => { if (item.active && item.img.complete) ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE); });
+        bins.forEach(bin => { if (bin.active && bin.img.complete) ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE); });
 
-        bins.forEach(bin => {
-            if (bin.active && bin.img.complete) {
-                ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE);
-            }
-        });
-
-        // Render Mobil (Digambar sebelum player agar Kurori terlihat tertabrak/berada di depannya)
-        activeCars.forEach(car => {
-            if (car.img.complete) {
-                ctx.drawImage(car.img, car.x, car.y, 64, 32);
-            }
-        });
+        // Render Mobil
+        activeCars.forEach(car => { if (car.img.complete && car.img.naturalWidth !== 0) ctx.drawImage(car.img, car.x, car.y, 64, 32); });
 
         let currentSprite = assets.charIdle;
-        if (player.isMoving) {
-            currentSprite = assets.charWalk; 
-        } else {
+        if (player.isMoving) currentSprite = assets.charWalk; 
+        else {
             if (player.carrying === 'organik') currentSprite = assets.charO;
             else if (player.carrying === 'anorganik') currentSprite = assets.charA;
             else if (player.carrying === 'b3') currentSprite = assets.charB;
@@ -397,35 +357,22 @@
             if (!player.facingRight) {
                 ctx.scale(-1, 1);
                 ctx.drawImage(currentSprite, -player.x - TILE_SIZE, player.y, TILE_SIZE, TILE_SIZE);
-            } else {
-                ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE);
-            }
+            } else { ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE); }
             ctx.restore();
         } else {
-            ctx.fillStyle = "hotpink";
-            ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = "hotpink"; ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
         }
 
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
-            ctx.fillStyle = "white";
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = 3;
-            ctx.font = "bold 14px 'VT323', monospace, sans-serif";
-            ctx.textAlign = "center";
-            ctx.strokeText(t.text, t.x, t.y - (60 - t.life) * 0.3);
-            ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
-            t.life--;
-            if (t.life <= 0) floatingTexts.splice(i, 1);
+            ctx.fillStyle = "white"; ctx.strokeStyle = "black"; ctx.lineWidth = 3;
+            ctx.font = "bold 14px 'VT323', monospace, sans-serif"; ctx.textAlign = "center";
+            ctx.strokeText(t.text, t.x, t.y - (60 - t.life) * 0.3); ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
+            t.life--; if (t.life <= 0) floatingTexts.splice(i, 1);
         }
     }
 
-    function gameLoop() {
-        update();
-        draw();
-        requestAnimationFrame(gameLoop);
-    }
-
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
     gameLoop();
 </script>
 </body>
