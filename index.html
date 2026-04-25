@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulasi Sorting Sampah</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* Mencegah pull-to-refresh di HP */
+            font-family: 'VT323', monospace, sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            max-width: 1024px; /* Batasan agar tidak terlalu besar di monitor PC */
+            aspect-ratio: 16 / 9;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated; /* Mempertahankan ketajaman pixel art */
+            display: block;
+            background-color: #222; /* Warna dasar jika kanvas belum load */
+        }
+
+        /* UI Kontrol D-Pad & Action */
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none; /* Agar klik tembus ke tombol */
+        }
+
+        .dpad {
+            position: absolute;
+            left: 5%;
+            bottom: 5%;
+            width: 30%;
+            max-width: 150px;
+            aspect-ratio: 1;
+            background: url('keywasd.png') no-repeat center/contain;
+            opacity: 0.5;
+            pointer-events: auto;
+        }
+
+        /* Invisible touch zones untuk D-Pad */
+        .d-btn { position: absolute; width: 33.3%; height: 33.3%; }
+        .d-up { top: 0; left: 33.3%; }
+        .d-down { bottom: 0; left: 33.3%; }
+        .d-left { top: 33.3%; left: 0; }
+        .d-right { top: 33.3%; right: 0; }
+
+        .btn-action {
+            position: absolute;
+            right: 5%;
+            bottom: 10%;
+            width: 18%;
+            max-width: 90px;
+            aspect-ratio: 1;
+            background: url('keyaction.png') no-repeat center/contain;
+            opacity: 0.5;
+            pointer-events: auto;
+            border-radius: 50%;
+        }
+
+        .btn-active { opacity: 0.8 !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="512" height="288"></canvas>
+    
+    <div class="ui-layer">
+        <div class="dpad" id="dpad-container">
+            <div class="d-btn d-up" id="btn-up"></div>
+            <div class="d-btn d-down" id="btn-down"></div>
+            <div class="d-btn d-left" id="btn-left"></div>
+            <div class="d-btn d-right" id="btn-right"></div>
+        </div>
+        <div class="btn-action" id="btn-action"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // --- MANAJEMEN ASET ---
+    const assets = {
+        bg: new Image(),
+        charIdle: new Image(), charWalk: new Image(),
+        charO: new Image(), charA: new Image(), charB: new Image(),
+        binO: new Image(), binA: new Image(), binB: new Image()
+    };
+    assets.bg.src = 'kanvaswas.png';
+    assets.charIdle.src = 'waschar.png';
+    assets.charWalk.src = 'waschar.gif';
+    assets.charO.src = 'wascharo.png';
+    assets.charA.src = 'waschara.png';
+    assets.charB.src = 'wascharb.png';
+    assets.binO.src = 'waso.png';
+    assets.binA.src = 'wasa.png';
+    assets.binB.src = 'wasb.png';
+
+    // --- STATE GAME ---
+    const TILE_SIZE = 32;
+    let keys = { w: false, a: false, s: false, d: false, action: false };
+    let actionTriggered = false; // Mencegah spam tombol action
+    let floatingTexts = [];
+
+    // Mengonversi string koordinat (contoh: 'b9') ke pixel (x, y)
+    function gridToPx(colStr, rowNum) {
+        const colIndex = colStr.charCodeAt(0) - 97; // 'a' = 0
+        const rowIndex = rowNum - 1; // '1' = 0
+        return { x: colIndex * TILE_SIZE, y: rowIndex * TILE_SIZE };
+    }
+
+    let player = {
+        x: gridToPx('h', 5).x, y: gridToPx('h', 5).y, // Posisi awal tengah
+        speed: 2.5,
+        carrying: null, // null, 'organik', 'anorganik', 'b3'
+        isMoving: false
+    };
+
+    // Objek Tong Sampah di Map
+    let bins = [
+        { type: 'organik', id: 'waso', px: gridToPx('b', 9).x, py: gridToPx('b', 9).y, active: true, img: assets.binO },
+        { type: 'anorganik', id: 'wasa', px: gridToPx('c', 9).x, py: gridToPx('c', 9).y, active: true, img: assets.binA },
+        { type: 'b3', id: 'wasb', px: gridToPx('d', 9).x, py: gridToPx('d', 9).y, active: true, img: assets.binB }
+    ];
+
+    // --- LOGIKA INPUT & KONTROL ---
+    function setKey(k, val) { keys[k] = val; }
+
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'w' || e.key === 'ArrowUp') setKey('w', true);
+        if (e.key === 's' || e.key === 'ArrowDown') setKey('s', true);
+        if (e.key === 'a' || e.key === 'ArrowLeft') setKey('a', true);
+        if (e.key === 'd' || e.key === 'ArrowRight') setKey('d', true);
+        if (e.key === ' ' || e.key === 'Enter') setKey('action', true);
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'w' || e.key === 'ArrowUp') setKey('w', false);
+        if (e.key === 's' || e.key === 'ArrowDown') setKey('s', false);
+        if (e.key === 'a' || e.key === 'ArrowLeft') setKey('a', false);
+        if (e.key === 'd' || e.key === 'ArrowRight') setKey('d', false);
+        if (e.key === ' ' || e.key === 'Enter') { setKey('action', false); actionTriggered = false; }
+    });
+
+    // Touch D-Pad & Action
+    const dpadZones = [
+        { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' },
+        { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' }
+    ];
+    dpadZones.forEach(zone => {
+        let el = document.getElementById(zone.id);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); setKey(zone.key, true); });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); setKey(zone.key, false); });
+    });
+
+    let btnAct = document.getElementById('btn-action');
+    btnAct.addEventListener('touchstart', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
+    btnAct.addEventListener('touchend', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
+
+    // --- FUNGSI UTILITAS ---
+    function showText(text, x, y) {
+        floatingTexts.push({ text: text, x: x + 16, y: y, life: 60 }); // Tampil sekitar 1 detik (60 frame)
+    }
+
+    function checkDistance(x1, y1, x2, y2) {
+        let dx = (x1 + 16) - (x2 + 16);
+        let dy = (y1 + 16) - (y2 + 16);
+        return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    // --- GAME LOOP & LOGIKA ---
+    function update() {
+        let prevX = player.x;
+        let prevY = player.y;
+
+        if (keys.w) player.y -= player.speed;
+        if (keys.s) player.y += player.speed;
+        if (keys.a) player.x -= player.speed;
+        if (keys.d) player.x += player.speed;
+
+        player.isMoving = (player.x !== prevX || player.y !== prevY);
+
+        // Batas Kanvas dan Area Stat (Baris a1-p1 tidak bisa dilewati)
+        if (player.x < 0) player.x = 0;
+        if (player.x > canvas.width - TILE_SIZE) player.x = canvas.width - TILE_SIZE;
+        if (player.y < TILE_SIZE) player.y = TILE_SIZE; // Tile baris pertama = 32px
+        if (player.y > canvas.height - TILE_SIZE) player.y = canvas.height - TILE_SIZE;
+
+        // Logika Tombol Action
+        if (keys.action && !actionTriggered) {
+            actionTriggered = true;
+            let interacted = false;
+
+            // 1. Cek interaksi dengan tempat tong sampah (area b9, c9, d9)
+            for (let bin of bins) {
+                if (checkDistance(player.x, player.y, bin.px, bin.py) < 24) {
+                    interacted = true;
+                    if (player.carrying === bin.type) {
+                        // Kembalikan tong sampah
+                        player.carrying = null;
+                        bin.active = true;
+                    } else {
+                        // Jatuhkan tong yang sedang dipegang (jika ada)
+                        if (player.carrying !== null) {
+                            let oldBin = bins.find(b => b.type === player.carrying);
+                            if (oldBin) oldBin.active = true;
+                        }
+                        // Ambil tong baru
+                        player.carrying = bin.type;
+                        bin.active = false;
+                    }
+                    break; 
+                }
+            }
+
+            // 2. Jika tidak berinteraksi dengan markas tong, berarti mencoba mengutip sampah
+            if (!interacted) {
+                // Logika placeholder untuk sampah (karena aset belum ada)
+                // Nanti kita akan cek jarak player dengan array objek sampah.
+                // Simulasi pesan peringatan saat ini:
+                if (player.carrying === null) {
+                    showText("Ambil tong dulu!", player.x, player.y);
+                } else {
+                    // Cek jenis sampah (nanti diganti dengan logika tabrakan sampah asli)
+                    // Jika salah: showText("Jangan campur!", player.x, player.y);
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Gambar Background
+        if (assets.bg.complete) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
+
+        // Gambar Tong Sampah di Map
+        bins.forEach(bin => {
+            if (bin.active && bin.img.complete) {
+                ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE);
+            }
+        });
+
+        // Gambar Karakter
+        let currentSprite = assets.charIdle;
+        if (player.carrying === 'organik') currentSprite = assets.charO;
+        else if (player.carrying === 'anorganik') currentSprite = assets.charA;
+        else if (player.carrying === 'b3') currentSprite = assets.charB;
+        // Override dengan animasi jalan jika bergerak (dan tidak bawa apa-apa, atau menyesuaikan nanti)
+        else if (player.isMoving) currentSprite = assets.charWalk; 
+
+        if (currentSprite.complete) {
+            ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE);
+        } else {
+            // Fallback kotak jika gambar belum termuat
+            ctx.fillStyle = "white";
+            ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+        }
+
+        // Gambar Teks Mengambang
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let t = floatingTexts[i];
+            ctx.fillStyle = "white";
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.font = "bold 14px 'VT323', monospace, sans-serif";
+            ctx.textAlign = "center";
+            ctx.strokeText(t.text, t.x, t.y - (60 - t.life) * 0.3);
+            ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
+            
+            t.life--;
+            if (t.life <= 0) floatingTexts.splice(i, 1);
+        }
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Mulai Loop
+    gameLoop();
+</script>
+</body>
+</html>
