@@ -53,12 +53,7 @@
             pointer-events: auto;
         }
 
-        .d-btn { 
-            position: absolute; 
-            width: 33.33%; 
-            height: 33.33%; 
-            cursor: pointer;
-        }
+        .d-btn { position: absolute; width: 33.33%; height: 33.33%; cursor: pointer; }
         .d-up { top: 0; left: 33.33%; }
         .d-down { bottom: 0; left: 33.33%; }
         .d-left { top: 33.33%; left: 0; }
@@ -106,7 +101,11 @@
         bg: new Image(),
         charIdle: new Image(), charWalk: new Image(),
         charO: new Image(), charA: new Image(), charB: new Image(),
-        binO: new Image(), binA: new Image(), binB: new Image()
+        binO: new Image(), binA: new Image(), binB: new Image(),
+        // Aset Sampah
+        waso1: new Image(), waso2: new Image(), waso3: new Image(), waso4: new Image(),
+        wasa1: new Image(), wasa2: new Image(), wasa3: new Image(), wasa4: new Image(),
+        wasb1: new Image(), wasb2: new Image()
     };
     assets.bg.src = 'kanvaswas.png';
     assets.charIdle.src = 'waschar.png';
@@ -117,28 +116,28 @@
     assets.binO.src = 'waso.png';
     assets.binA.src = 'wasa.png';
     assets.binB.src = 'wasb.png';
+    
+    assets.waso1.src = 'waso1.png'; assets.waso2.src = 'waso2.png'; assets.waso3.src = 'waso3.png'; assets.waso4.src = 'waso4.png';
+    assets.wasa1.src = 'wasa1.png'; assets.wasa2.src = 'wasa2.png'; assets.wasa3.src = 'wasa3.png'; assets.wasa4.src = 'wasa4.png';
+    assets.wasb1.src = 'wasb1.png'; assets.wasb2.src = 'wasb2.png';
+
+    const TILE_SIZE = 32;
+
+    // Helper Konversi Koordinat
+    function gridToPx(colStr, rowNum) {
+        return { x: (colStr.charCodeAt(0) - 97) * TILE_SIZE, y: (rowNum - 1) * TILE_SIZE };
+    }
 
     // --- STATE GAME ---
-    const TILE_SIZE = 32;
     let keys = { w: false, a: false, s: false, d: false, action: false };
     let actionTriggered = false;
     let floatingTexts = [];
 
-    function gridToPx(colStr, rowNum) {
-        const colIndex = colStr.charCodeAt(0) - 97;
-        const rowIndex = rowNum - 1;
-        return { x: colIndex * TILE_SIZE, y: rowIndex * TILE_SIZE };
-    }
-
+    // Player Spawn di f9
     let player = {
-        x: gridToPx('h', 5).x, 
-        y: gridToPx('h', 5).y,
-        targetX: gridToPx('h', 5).x, 
-        targetY: gridToPx('h', 5).y,
-        speed: 2.5,
-        carrying: null, 
-        isMoving: false,
-        facingRight: true
+        x: gridToPx('f', 9).x, y: gridToPx('f', 9).y,
+        targetX: gridToPx('f', 9).x, targetY: gridToPx('f', 9).y,
+        speed: 2.5, carrying: null, isMoving: false, facingRight: true
     };
 
     let bins = [
@@ -146,6 +145,51 @@
         { type: 'anorganik', px: gridToPx('c', 9).x, py: gridToPx('c', 9).y, active: true, img: assets.binA },
         { type: 'b3', px: gridToPx('d', 9).x, py: gridToPx('d', 9).y, active: true, img: assets.binB }
     ];
+
+    // Data Mapping Sampah
+    const trashData = [
+        { id: 'waso1', type: 'organik', img: assets.waso1, locs: ['m4'] },
+        { id: 'waso2', type: 'organik', img: assets.waso2, locs: ['a6','b6','h5','m9','o6'] },
+        { id: 'waso3', type: 'organik', img: assets.waso3, locs: ['m6'] },
+        { id: 'waso4', type: 'organik', img: assets.waso4, locs: ['n9'] },
+        { id: 'wasa1', type: 'anorganik', img: assets.wasa1, locs: ['e2','p9'] },
+        { id: 'wasa2', type: 'anorganik', img: assets.wasa2, locs: ['k6'] },
+        { id: 'wasa3', type: 'anorganik', img: assets.wasa3, locs: ['h3'] },
+        { id: 'wasa4', type: 'anorganik', img: assets.wasa4, locs: ['b4','d6'] },
+        { id: 'wasb1', type: 'b3', img: assets.wasb1, locs: ['p2'] },
+        { id: 'wasb2', type: 'b3', img: assets.wasb2, locs: ['a4'] }
+    ];
+
+    let itemsMap = [];
+    // Parsing lokasi sampah menjadi array objek terpisah
+    trashData.forEach(t => {
+        t.locs.forEach(loc => {
+            let col = loc.charAt(0);
+            let row = parseInt(loc.substring(1));
+            let pos = gridToPx(col, row);
+            itemsMap.push({ x: pos.x, y: pos.y, type: t.type, img: t.img, active: true });
+        });
+    });
+
+    // --- SISTEM COLLISION ---
+    function isSolid(x, y) {
+        let col = Math.round(x / TILE_SIZE);
+        let row = Math.round(y / TILE_SIZE);
+        if (row === 0) return true; // a1-p1 (Baris 1)
+        if (col === 15 && row === 3) return true; // p4
+        return false;
+    }
+
+    function hasTopWall(x, y) {
+        let col = Math.round(x / TILE_SIZE);
+        let row = Math.round(y / TILE_SIZE);
+        if ((col === 13 || col === 14) && row === 2) return true; // n3-o3
+        if (col >= 0 && col <= 3 && row === 4) return true; // a5-d5
+        if (col >= 8 && col <= 15 && row === 4) return true; // i5-p5
+        if (col === 4 && row === 5) return true; // e6
+        if (col === 0 && row === 8) return true; // a9
+        return false;
+    }
 
     // --- KONTROL INPUT ---
     function setKey(k, val) { keys[k] = val; }
@@ -165,11 +209,7 @@
         if (e.key === ' ' || e.key === 'Enter') { setKey('action', false); actionTriggered = false; }
     });
 
-    const dpadZones = [
-        { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' },
-        { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' }
-    ];
-    
+    const dpadZones = [ { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' }, { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' } ];
     dpadZones.forEach(zone => {
         let el = document.getElementById(zone.id);
         el.addEventListener('touchstart', (e) => { e.preventDefault(); setKey(zone.key, true); });
@@ -192,28 +232,30 @@
     }
 
     function checkDistance(x1, y1, x2, y2) {
-        let dx = (x1 + 16) - (x2 + 16);
-        let dy = (y1 + 16) - (y2 + 16);
-        return Math.sqrt(dx*dx + dy*dy);
+        return Math.sqrt(Math.pow((x1+16) - (x2+16), 2) + Math.pow((y1+16) - (y2+16), 2));
     }
 
     // --- UPDATE LOOP ---
     function update() {
         if (!player.isMoving) {
-            if (keys.w && player.y > TILE_SIZE) { 
-                player.targetY -= TILE_SIZE; 
-                player.isMoving = true; 
+            if (keys.w && player.y > 0) { 
+                // Gerak ATAS: Cek apakah kotak yang diinjak punya Tembok Atas, lalu cek Solid di target
+                if (!hasTopWall(player.x, player.y) && !isSolid(player.x, player.y - TILE_SIZE)) {
+                    player.targetY -= TILE_SIZE; player.isMoving = true; 
+                }
             } else if (keys.s && player.y < canvas.height - TILE_SIZE) { 
-                player.targetY += TILE_SIZE; 
-                player.isMoving = true; 
+                // Gerak BAWAH: Cek Solid di target, lalu cek apakah target punya Tembok Atas
+                if (!isSolid(player.x, player.y + TILE_SIZE) && !hasTopWall(player.x, player.y + TILE_SIZE)) {
+                    player.targetY += TILE_SIZE; player.isMoving = true; 
+                }
             } else if (keys.a && player.x > 0) { 
-                player.targetX -= TILE_SIZE; 
-                player.isMoving = true; 
-                player.facingRight = false;
+                if (!isSolid(player.x - TILE_SIZE, player.y)) {
+                    player.targetX -= TILE_SIZE; player.isMoving = true; player.facingRight = false;
+                }
             } else if (keys.d && player.x < canvas.width - TILE_SIZE) { 
-                player.targetX += TILE_SIZE; 
-                player.isMoving = true; 
-                player.facingRight = true;
+                if (!isSolid(player.x + TILE_SIZE, player.y)) {
+                    player.targetX += TILE_SIZE; player.isMoving = true; player.facingRight = true;
+                }
             }
         } else {
             let dx = player.targetX - player.x;
@@ -235,28 +277,44 @@
             let interacted = false;
 
             if (!player.isMoving) {
+                // 1. Cek Interaksi dengan Markas Tong Sampah
                 for (let bin of bins) {
                     if (checkDistance(player.x, player.y, bin.px, bin.py) < 10) {
                         interacted = true;
                         if (player.carrying === bin.type) {
-                            player.carrying = null;
-                            bin.active = true;
+                            player.carrying = null; bin.active = true;
                         } else {
                             if (player.carrying !== null) {
                                 let oldBin = bins.find(b => b.type === player.carrying);
                                 if (oldBin) oldBin.active = true;
                             }
-                            player.carrying = bin.type;
-                            bin.active = false;
+                            player.carrying = bin.type; bin.active = false;
                         }
                         break; 
                     }
                 }
 
+                // 2. Cek Interaksi dengan Item Sampah di tanah
                 if (!interacted) {
-                    if (player.carrying === null) {
-                        showText("Ambil tong sampahnya dulu!", player.x, player.y);
+                    for (let item of itemsMap) {
+                        if (item.active && checkDistance(player.x, player.y, item.x, item.y) < 10) {
+                            interacted = true;
+                            if (player.carrying === null) {
+                                showText("Ambil tongnya dulu!", player.x, player.y);
+                            } else if (player.carrying === item.type) {
+                                item.active = false; // Berhasil dipungut
+                                showText("Sip!", player.x, player.y);
+                            } else {
+                                showText("Jangan disatukan!", player.x, player.y);
+                            }
+                            break;
+                        }
                     }
+                }
+
+                // Jika mencet tombol tapi tidak ada apa-apa
+                if (!interacted && player.carrying === null) {
+                    showText("Ambil tongnya dulu!", player.x, player.y);
                 }
             }
         }
@@ -268,19 +326,25 @@
 
         if (assets.bg.complete) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
 
+        // Render Item Sampah
+        itemsMap.forEach(item => {
+            if (item.active && item.img.complete) {
+                ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE);
+            }
+        });
+
+        // Render Markas Tong Sampah
         bins.forEach(bin => {
             if (bin.active && bin.img.complete) {
                 ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE);
             }
         });
 
-        // PRIORITAS DIREVISI: Cek pergerakan lebih dulu
+        // Penentuan Sprite Karakter
         let currentSprite = assets.charIdle;
-        
         if (player.isMoving) {
-            currentSprite = assets.charWalk; // Paksa pakai .gif jika bergerak
+            currentSprite = assets.charWalk; 
         } else {
-            // Jika diam, baru cek tong apa yang dipegang
             if (player.carrying === 'organik') currentSprite = assets.charO;
             else if (player.carrying === 'anorganik') currentSprite = assets.charA;
             else if (player.carrying === 'b3') currentSprite = assets.charB;
@@ -290,23 +354,22 @@
             currentSprite = assets.charIdle; 
         }
 
-        // Render Karakter
+        // Render Karakter dengan Mirroring
         if (currentSprite.complete && currentSprite.naturalWidth !== 0) {
             ctx.save(); 
-            
             if (!player.facingRight) {
                 ctx.scale(-1, 1);
                 ctx.drawImage(currentSprite, -player.x - TILE_SIZE, player.y, TILE_SIZE, TILE_SIZE);
             } else {
                 ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE);
             }
-            
             ctx.restore();
         } else {
             ctx.fillStyle = "hotpink";
             ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
         }
 
+        // Render Peringatan Teks
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
             ctx.fillStyle = "white";
@@ -316,7 +379,6 @@
             ctx.textAlign = "center";
             ctx.strokeText(t.text, t.x, t.y - (60 - t.life) * 0.3);
             ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
-            
             t.life--;
             if (t.life <= 0) floatingTexts.splice(i, 1);
         }
