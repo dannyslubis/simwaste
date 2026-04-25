@@ -15,7 +15,8 @@
             overflow: hidden;
             touch-action: none;
             font-family: 'VT323', monospace, sans-serif;
-            user-select: none; /* Mencegah teks terblok saat klik cepat */
+            user-select: none; /* Mencegah teks/elemen terblok biru saat diklik cepat di PC */
+            -webkit-user-select: none;
         }
 
         #game-container {
@@ -109,7 +110,7 @@
     };
     assets.bg.src = 'kanvaswas.png';
     assets.charIdle.src = 'waschar.png';
-    assets.charWalk.src = 'waschar.gif'; 
+    assets.charWalk.src = 'waschar.gif'; // Ini hanya akan memunculkan frame 1
     assets.charO.src = 'wascharo.png';
     assets.charA.src = 'waschara.png';
     assets.charB.src = 'wascharb.png';
@@ -132,12 +133,12 @@
     let player = {
         x: gridToPx('h', 5).x, 
         y: gridToPx('h', 5).y,
-        targetX: gridToPx('h', 5).x, // Target kordinat pergerakan (grid-based)
+        targetX: gridToPx('h', 5).x, 
         targetY: gridToPx('h', 5).y,
         speed: 2.5,
         carrying: null, 
         isMoving: false,
-        facingRight: true // Penentu arah menghadap
+        facingRight: true
     };
 
     let bins = [
@@ -146,7 +147,7 @@
         { type: 'b3', px: gridToPx('d', 9).x, py: gridToPx('d', 9).y, active: true, img: assets.binB }
     ];
 
-    // --- KONTROL INPUT (KEYBOARD, TOUCH, & MOUSE) ---
+    // --- KONTROL INPUT ---
     function setKey(k, val) { keys[k] = val; }
 
     window.addEventListener('keydown', (e) => {
@@ -171,25 +172,21 @@
     
     dpadZones.forEach(zone => {
         let el = document.getElementById(zone.id);
-        // Touch
         el.addEventListener('touchstart', (e) => { e.preventDefault(); setKey(zone.key, true); });
         el.addEventListener('touchend', (e) => { e.preventDefault(); setKey(zone.key, false); });
-        // Mouse
         el.addEventListener('mousedown', (e) => { e.preventDefault(); setKey(zone.key, true); });
         el.addEventListener('mouseup', (e) => { e.preventDefault(); setKey(zone.key, false); });
         el.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey(zone.key, false); });
     });
 
     let btnAct = document.getElementById('btn-action');
-    // Touch Action
     btnAct.addEventListener('touchstart', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
     btnAct.addEventListener('touchend', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
-    // Mouse Action
     btnAct.addEventListener('mousedown', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
     btnAct.addEventListener('mouseup', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
     btnAct.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
 
-    // --- UTILITAS UI ---
+    // --- UTILITAS ---
     function showText(text, x, y) {
         floatingTexts.push({ text: text, x: x + 16, y: y, life: 60 });
     }
@@ -200,11 +197,9 @@
         return Math.sqrt(dx*dx + dy*dy);
     }
 
-    // --- UPDATE LOOP (GRID-BASED MOVEMENT) ---
+    // --- UPDATE LOOP ---
     function update() {
-        // Jika tidak sedang bergerak, cek input untuk menentukan target kotak (tile) berikutnya
         if (!player.isMoving) {
-            // Urutan if-else if ini mencegah pergerakan diagonal
             if (keys.w && player.y > TILE_SIZE) { 
                 player.targetY -= TILE_SIZE; 
                 player.isMoving = true; 
@@ -214,43 +209,31 @@
             } else if (keys.a && player.x > 0) { 
                 player.targetX -= TILE_SIZE; 
                 player.isMoving = true; 
-                player.facingRight = false; // Hadap Kiri
+                player.facingRight = false;
             } else if (keys.d && player.x < canvas.width - TILE_SIZE) { 
                 player.targetX += TILE_SIZE; 
                 player.isMoving = true; 
-                player.facingRight = true;  // Hadap Kanan
+                player.facingRight = true;
             }
         } else {
-            // Proses pergerakan menuju target koordinat
             let dx = player.targetX - player.x;
             let dy = player.targetY - player.y;
 
-            // Pergerakan X
-            if (Math.abs(dx) <= player.speed) {
-                player.x = player.targetX; // Snap ke grid
-            } else {
-                player.x += Math.sign(dx) * player.speed;
-            }
+            if (Math.abs(dx) <= player.speed) player.x = player.targetX;
+            else player.x += Math.sign(dx) * player.speed;
 
-            // Pergerakan Y
-            if (Math.abs(dy) <= player.speed) {
-                player.y = player.targetY; // Snap ke grid
-            } else {
-                player.y += Math.sign(dy) * player.speed;
-            }
+            if (Math.abs(dy) <= player.speed) player.y = player.targetY;
+            else player.y += Math.sign(dy) * player.speed;
 
-            // Cek apakah sudah sampai di target tile
             if (player.x === player.targetX && player.y === player.targetY) {
                 player.isMoving = false;
             }
         }
 
-        // Logika Tombol Action (Aktivasi Tong Sampah)
         if (keys.action && !actionTriggered) {
             actionTriggered = true;
             let interacted = false;
 
-            // Karakter harus berhenti sempurna di tile untuk bisa berinteraksi
             if (!player.isMoving) {
                 for (let bin of bins) {
                     if (checkDistance(player.x, player.y, bin.px, bin.py) < 10) {
@@ -283,17 +266,14 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Render Background
         if (assets.bg.complete) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
 
-        // Render Tong Sampah Map
         bins.forEach(bin => {
             if (bin.active && bin.img.complete) {
                 ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE);
             }
         });
 
-        // Penentuan Sprite Karakter
         let currentSprite = assets.charIdle;
         if (player.carrying === 'organik') currentSprite = assets.charO;
         else if (player.carrying === 'anorganik') currentSprite = assets.charA;
@@ -304,31 +284,23 @@
             currentSprite = assets.charIdle; 
         }
 
-        let drawY = player.y;
-        if (player.isMoving && currentSprite === assets.charIdle) {
-            drawY += Math.sin(Date.now() / 80) * 2; // Efek wobble saat jalan
-        }
-
-        // Render Karakter (Dengan Logika Mirroring)
+        // Render Karakter (Lurus, tanpa wobble)
         if (currentSprite.complete && currentSprite.naturalWidth !== 0) {
-            ctx.save(); // Simpan state canvas saat ini
+            ctx.save(); 
             
             if (!player.facingRight) {
-                // Balik canvas secara horizontal
                 ctx.scale(-1, 1);
-                // Karena canvas dibalik, koordinat X harus di-minus-kan dan digeser selebar TILE_SIZE
-                ctx.drawImage(currentSprite, -player.x - TILE_SIZE, drawY, TILE_SIZE, TILE_SIZE);
+                ctx.drawImage(currentSprite, -player.x - TILE_SIZE, player.y, TILE_SIZE, TILE_SIZE);
             } else {
-                ctx.drawImage(currentSprite, player.x, drawY, TILE_SIZE, TILE_SIZE);
+                ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE);
             }
             
-            ctx.restore(); // Kembalikan canvas ke normal agar elemen lain tidak ikut terbalik
+            ctx.restore();
         } else {
             ctx.fillStyle = "hotpink";
             ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
         }
 
-        // Render Teks Mengambang
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
             ctx.fillStyle = "white";
