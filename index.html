@@ -15,7 +15,7 @@
             overflow: hidden;
             touch-action: none;
             font-family: 'VT323', monospace, sans-serif;
-            user-select: none; /* Mencegah teks/elemen terblok biru saat diklik cepat di PC */
+            user-select: none;
             -webkit-user-select: none;
         }
 
@@ -110,7 +110,7 @@
     };
     assets.bg.src = 'kanvaswas.png';
     assets.charIdle.src = 'waschar.png';
-    assets.charWalk.src = 'waschar.gif'; // Ini hanya akan memunculkan frame 1
+    assets.charWalk.src = 'waschar.gif'; 
     assets.charO.src = 'wascharo.png';
     assets.charA.src = 'waschara.png';
     assets.charB.src = 'wascharb.png';
@@ -274,17 +274,23 @@
             }
         });
 
+        // PRIORITAS DIREVISI: Cek pergerakan lebih dulu
         let currentSprite = assets.charIdle;
-        if (player.carrying === 'organik') currentSprite = assets.charO;
-        else if (player.carrying === 'anorganik') currentSprite = assets.charA;
-        else if (player.carrying === 'b3') currentSprite = assets.charB;
-        else if (player.isMoving) currentSprite = assets.charWalk; 
+        
+        if (player.isMoving) {
+            currentSprite = assets.charWalk; // Paksa pakai .gif jika bergerak
+        } else {
+            // Jika diam, baru cek tong apa yang dipegang
+            if (player.carrying === 'organik') currentSprite = assets.charO;
+            else if (player.carrying === 'anorganik') currentSprite = assets.charA;
+            else if (player.carrying === 'b3') currentSprite = assets.charB;
+        }
 
         if (!currentSprite.complete || currentSprite.naturalWidth === 0) {
             currentSprite = assets.charIdle; 
         }
 
-        // Render Karakter (Lurus, tanpa wobble)
+        // Render Karakter
         if (currentSprite.complete && currentSprite.naturalWidth !== 0) {
             ctx.save(); 
             
