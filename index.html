@@ -6,72 +6,25 @@
     <title>Simulasi Sorting Sampah</title>
     <style>
         body {
-            margin: 0;
-            background-color: #111;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-            touch-action: none;
-            font-family: 'VT323', monospace, sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
+            margin: 0; background-color: #111; display: flex; justify-content: center;
+            align-items: center; height: 100vh; overflow: hidden; touch-action: none;
+            font-family: 'VT323', monospace, sans-serif; user-select: none; -webkit-user-select: none;
+        }
+        #game-container { position: relative; width: 100vw; max-width: 1024px; aspect-ratio: 16 / 9; }
+        canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; background-color: #222; }
+        .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
+        
+        /* Panel Status Baru */
+        .status-panel {
+            position: absolute; top: 5%; left: 5%; background: rgba(0, 0, 0, 0.7);
+            color: white; border: 2px solid white; padding: 5px 15px;
+            font-size: 20px; font-weight: bold; border-radius: 8px; text-transform: uppercase;
         }
 
-        #game-container {
-            position: relative;
-            width: 100vw;
-            max-width: 1024px;
-            aspect-ratio: 16 / 9;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            image-rendering: pixelated;
-            display: block;
-            background-color: #222;
-        }
-
-        .ui-layer {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            z-index: 9999;
-        }
-
-        .dpad {
-            position: absolute;
-            left: 8%;
-            bottom: 12%;
-            width: 22%;
-            max-width: 160px;
-            aspect-ratio: 1;
-            background: url('keywasd.png') no-repeat center/contain;
-            opacity: 0.5;
-            pointer-events: auto;
-        }
-
+        .dpad { position: absolute; left: 8%; bottom: 12%; width: 22%; max-width: 160px; aspect-ratio: 1; background: url('keywasd.png') no-repeat center/contain; opacity: 0.5; pointer-events: auto; }
         .d-btn { position: absolute; width: 33.33%; height: 33.33%; cursor: pointer; }
-        .d-up { top: 0; left: 33.33%; }
-        .d-down { bottom: 0; left: 33.33%; }
-        .d-left { top: 33.33%; left: 0; }
-        .d-right { top: 33.33%; right: 0; }
-
-        .btn-action {
-            position: absolute;
-            right: 8%;
-            bottom: 15%;
-            width: 12%;
-            max-width: 80px;
-            aspect-ratio: 1;
-            background: url('keyaction.png') no-repeat center/contain;
-            opacity: 0.5;
-            pointer-events: auto;
-            cursor: pointer;
-        }
-
+        .d-up { top: 0; left: 33.33%; } .d-down { bottom: 0; left: 33.33%; } .d-left { top: 33.33%; left: 0; } .d-right { top: 33.33%; right: 0; }
+        .btn-action { position: absolute; right: 8%; bottom: 15%; width: 12%; max-width: 80px; aspect-ratio: 1; background: url('keyaction.png') no-repeat center/contain; opacity: 0.5; pointer-events: auto; cursor: pointer; }
         .btn-active { opacity: 0.8 !important; }
     </style>
 </head>
@@ -79,13 +32,11 @@
 
 <div id="game-container">
     <canvas id="gameCanvas" width="512" height="288"></canvas>
-    
     <div class="ui-layer">
+        <div class="status-panel">Sampah di TPS: <span id="trash-count">0</span> / 16</div>
         <div class="dpad" id="dpad-container">
-            <div class="d-btn d-up" id="btn-up"></div>
-            <div class="d-btn d-down" id="btn-down"></div>
-            <div class="d-btn d-left" id="btn-left"></div>
-            <div class="d-btn d-right" id="btn-right"></div>
+            <div class="d-btn d-up" id="btn-up"></div> <div class="d-btn d-down" id="btn-down"></div>
+            <div class="d-btn d-left" id="btn-left"></div> <div class="d-btn d-right" id="btn-right"></div>
         </div>
         <div class="btn-action" id="btn-action"></div>
     </div>
@@ -95,6 +46,7 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
+    const uiTrashCount = document.getElementById('trash-count');
 
     // --- MANAJEMEN ASET ---
     const assets = {
@@ -116,28 +68,26 @@
     assets.waso1.src = 'waso1.png'; assets.waso2.src = 'waso2.png'; assets.waso3.src = 'waso3.png'; assets.waso4.src = 'waso4.png';
     assets.wasa1.src = 'wasa1.png'; assets.wasa2.src = 'wasa2.png'; assets.wasa3.src = 'wasa3.png'; assets.wasa4.src = 'wasa4.png';
     assets.wasb1.src = 'wasb1.png'; assets.wasb2.src = 'wasb2.png';
-
     assets.wascarl1.src = 'wascarl1.png'; assets.wascarl2.src = 'wascarl2.png'; assets.wascarl3.src = 'wascarl3.png'; assets.wascarl4.src = 'wascarl4.png';
     assets.wascarr1.src = 'wascarr1.png'; assets.wascarr2.src = 'wascarr2.png'; assets.wascarr3.src = 'wascarr3.png'; assets.wascarr4.src = 'wascarr4.png';
 
     const TILE_SIZE = 32;
-    function gridToPx(colStr, rowNum) {
-        return { x: (colStr.charCodeAt(0) - 97) * TILE_SIZE, y: (rowNum - 1) * TILE_SIZE };
-    }
+    function gridToPx(colStr, rowNum) { return { x: (colStr.charCodeAt(0) - 97) * TILE_SIZE, y: (rowNum - 1) * TILE_SIZE }; }
 
     // --- STATE GAME ---
     let keys = { w: false, a: false, s: false, d: false, action: false };
-    let actionTriggered = false;
-    let floatingTexts = [];
-    let gameStartTime = null;
-    let isCrashed = false;
-    let crashTimer = 0;
-    let fadeAlpha = 0;
+    let actionTriggered = false; let floatingTexts = [];
+    let gameStartTime = null; let isCrashed = false; let crashTimer = 0; let fadeAlpha = 0;
+    
+    // Total Tracker & Inventory System Baru
+    let totalCollected = 0;
+    const TOTAL_TRASH = 16;
 
     let player = {
         x: gridToPx('f', 9).x, y: gridToPx('f', 9).y,
         targetX: gridToPx('f', 9).x, targetY: gridToPx('f', 9).y,
-        carrying: null, isMoving: false, facingRight: true
+        carrying: null, isMoving: false, facingRight: true,
+        inventory: [] // Array untuk menyimpan referensi item yang dipungut
     };
 
     let bins = [
@@ -167,10 +117,9 @@
         });
     });
 
+    // --- SISTEM KENDARAAN ---
     let activeCars = [];
-    const laneAtasY = gridToPx('a', 7).y; // 192
-    const laneBawahY = gridToPx('a', 8).y; // 224
-
+    const laneAtasY = gridToPx('a', 7).y; const laneBawahY = gridToPx('a', 8).y;
     const carSpawners = [
         { img: assets.wascarl1, y: laneAtasY, baseSpeed: 3.5, interval: 30000, nextSpawn: 0 },
         { img: assets.wascarl2, y: laneAtasY, baseSpeed: 3.0, interval: 25000, nextSpawn: 8000 },
@@ -182,7 +131,7 @@
         { img: assets.wascarr4, y: laneBawahY, baseSpeed: -3.0, interval: 45000, nextSpawn: 28000 }
     ];
 
-    // --- LOGIKA ZEBRA CROSS & COLLISION ---
+    // --- COLLISION LOGIC ---
     function isSolid(x, y) {
         let col = Math.round(x / TILE_SIZE); let row = Math.round(y / TILE_SIZE);
         if (row === 0) return true; if (col === 15 && row === 3) return true; return false;
@@ -196,34 +145,31 @@
         if (col === 0 && row === 8) return true; 
         return false;
     }
-
     function checkOnZebraCross(px, py) {
         let col = Math.round(px / TILE_SIZE); let row = Math.round(py / TILE_SIZE);
-        // Zebra Cross: f7, f8, g7, g8 -> Cols: 5 & 6. Rows: 6 & 7.
         return (col === 5 || col === 6) && (row === 6 || row === 7);
     }
 
     function triggerCrash() {
         if (isCrashed) return;
-        isCrashed = true;
-        crashTimer = Date.now();
+        isCrashed = true; crashTimer = Date.now();
         
         if (player.carrying !== null) {
             let droppedType = player.carrying;
             player.carrying = null;
-            
-            // 1. Kembalikan Tong
             let bin = bins.find(b => b.type === droppedType);
             if (bin) bin.active = true;
 
-            // 2. Cecerkan 1 Sampah
-            spawnDroppedTrash(droppedType);
+            // Jika ada sampah yang diambil, keluarkan 1 item persis yang sama
+            if (player.inventory.length > 0) {
+                let droppedItem = player.inventory.pop(); // Ambil item dari ransel
+                spawnExactTrash(droppedItem);
+            }
         }
     }
 
-    function spawnDroppedTrash(type) {
+    function spawnExactTrash(itemObj) {
         let possibleTiles = [];
-        // Prioritas 1: a6-p6 (row 5) dan e9-p9 (row 8, cols 4-15)
         for(let c=0; c<=15; c++) possibleTiles.push({c:c, r:5});
         for(let c=4; c<=15; c++) possibleTiles.push({c:c, r:8});
         
@@ -234,7 +180,6 @@
             return true;
         });
 
-        // Alternatif jika penuh: a5-p5 (row 4)
         if (emptyTiles.length === 0) {
             for(let c=0; c<=15; c++) {
                 let px = c * TILE_SIZE; let py = 4 * TILE_SIZE;
@@ -243,16 +188,12 @@
                 }
             }
         }
-
         if (emptyTiles.length > 0) {
             let randTile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
-            let typeAssets = trashData.filter(t => t.type === type);
-            let randomAsset = typeAssets[Math.floor(Math.random() * typeAssets.length)].img;
-            
-            itemsMap.push({
-                x: randTile.c * TILE_SIZE, y: randTile.r * TILE_SIZE,
-                type: type, img: randomAsset, active: true
-            });
+            // Gunakan kembali objek asli, ubah posisi dan aktifkan
+            itemObj.x = randTile.c * TILE_SIZE;
+            itemObj.y = randTile.r * TILE_SIZE;
+            itemObj.active = true;
         }
     }
 
@@ -272,7 +213,8 @@
         if (e.key === 'd' || e.key === 'ArrowRight') setKey('d', false);
         if (e.key === ' ' || e.key === 'Enter') { setKey('action', false); actionTriggered = false; }
     });
-
+    
+    // ... [Event Listeners UI Mouse/Touch sama seperti sebelumnya] ...
     const dpadZones = [ { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' }, { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' } ];
     dpadZones.forEach(zone => {
         let el = document.getElementById(zone.id);
@@ -282,7 +224,6 @@
         el.addEventListener('mouseup', (e) => { e.preventDefault(); setKey(zone.key, false); });
         el.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey(zone.key, false); });
     });
-
     let btnAct = document.getElementById('btn-action');
     btnAct.addEventListener('touchstart', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
     btnAct.addEventListener('touchend', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
@@ -296,24 +237,22 @@
     // --- UPDATE LOOP ---
     function update() {
         if (!gameStartTime) gameStartTime = Date.now();
-        let now = Date.now() - gameStartTime;
-        let realNow = Date.now();
+        let now = Date.now() - gameStartTime; let realNow = Date.now();
 
-        // 1. Logika Efek Fade/Crash
+        // 1. Logika Fade & Reset Crash
         if (isCrashed) {
             let elapsed = realNow - crashTimer;
             if (elapsed < 500) fadeAlpha = elapsed / 500;
             else if (elapsed < 2500) fadeAlpha = 1;
             else if (elapsed < 3000) fadeAlpha = 1 - ((elapsed - 2500) / 500);
             else {
-                isCrashed = false;
-                fadeAlpha = 0;
+                isCrashed = false; fadeAlpha = 0;
                 player.x = player.targetX = gridToPx('f', 9).x;
                 player.y = player.targetY = gridToPx('f', 9).y;
             }
         }
 
-        // 2. Spawn Mobil
+        // 2. Spawn Mobil Anti-Burst
         carSpawners.forEach(s => {
             if (now >= s.nextSpawn) {
                 activeCars.push({ img: s.img, x: s.baseSpeed > 0 ? -64 : canvas.width, y: s.y, baseSpeed: s.baseSpeed, currentSpeed: s.baseSpeed });
@@ -322,25 +261,30 @@
         });
 
         let onZebra = checkOnZebraCross(player.x, player.y) && !isCrashed;
-        const ZEBRA_LEFT = 5 * TILE_SIZE; // 160
-        const ZEBRA_RIGHT = 7 * TILE_SIZE; // 224
 
-        // 3. Logika Pergerakan Mobil & Efek Macet
+        // 3. Logika Pergerakan Mobil & Strict Stop + Macet 96px
         for (let i = activeCars.length - 1; i >= 0; i--) {
             let car = activeCars[i];
-            
-            // A. Cek Lampu Merah (Zebra Cross)
             let isStoppedByZebra = false;
+
+            // A. Strict Stop di Garis Zebra Cross (Pixel 160 & 224)
             if (onZebra) {
-                if (car.baseSpeed > 0 && car.x + 64 <= ZEBRA_LEFT + 5) isStoppedByZebra = true;
-                else if (car.baseSpeed < 0 && car.x >= ZEBRA_RIGHT - 5) isStoppedByZebra = true;
+                if (car.baseSpeed > 0) {
+                    let front = car.x + 64;
+                    if (front <= 160 && front + car.baseSpeed >= 160) {
+                        car.x = 160 - 64; isStoppedByZebra = true;
+                    } else if (front === 160) isStoppedByZebra = true;
+                } else {
+                    let front = car.x;
+                    if (front >= 224 && front + car.baseSpeed <= 224) {
+                        car.x = 224; isStoppedByZebra = true;
+                    } else if (front === 224) isStoppedByZebra = true;
+                }
             }
-            
             car.currentSpeed = isStoppedByZebra ? 0 : car.baseSpeed;
 
-            // B. Cek Reaksi Berantai (Anti-Slip 96px)
-            let carAhead = null;
-            let minDx = Infinity;
+            // B. Reaksi Berantai (Jarak Wajib 96px)
+            let carAhead = null; let minDx = Infinity;
             for (let other of activeCars) {
                 if (other === car || other.y !== car.y) continue;
                 if (car.baseSpeed > 0 && other.x > car.x) {
@@ -352,30 +296,34 @@
                 }
             }
 
-            // Pengereman otomatis jika jarak <= 96
             if (carAhead && minDx <= 96) {
                 if (Math.abs(car.currentSpeed) > Math.abs(carAhead.currentSpeed)) {
                     car.currentSpeed = carAhead.currentSpeed;
+                }
+                // Paksa snap agar tidak ada selip walau 1 pixel
+                if (car.baseSpeed > 0 && car.x + car.currentSpeed > carAhead.x - 96) {
+                    car.x = carAhead.x - 96; car.currentSpeed = 0;
+                } else if (car.baseSpeed < 0 && car.x + car.currentSpeed < carAhead.x + 96) {
+                    car.x = carAhead.x + 96; car.currentSpeed = 0;
                 }
             }
 
             car.x += car.currentSpeed;
 
-            // Cek Tabrakan dengan Kurori
+            // C. Cek Tabrakan dengan Karakter
             if (!isCrashed && !onZebra) {
-                // Hitbox toleransi sedikit agar tidak terlalu kejam
                 if (player.x + 24 > car.x && player.x + 8 < car.x + 64 &&
                     player.y + 24 > car.y && player.y + 8 < car.y + 32) {
                     triggerCrash();
                 }
             }
 
-            // Hapus mobil lewat
+            // Hapus Mobil
             if (car.baseSpeed > 0 && car.x > canvas.width + 64) activeCars.splice(i, 1);
             else if (car.baseSpeed < 0 && car.x < -128) activeCars.splice(i, 1);
         }
 
-        // 4. Logika Gerak Player (Hanya jika tidak crash)
+        // 4. Logika Gerak Player
         if (!isCrashed) {
             let currentSpeed = player.carrying !== null ? 2.0 : 2.5;
 
@@ -408,15 +356,23 @@
                 if (player.x === player.targetX && player.y === player.targetY) player.isMoving = false;
             }
 
-            // Logika Action
+            // 5. Logika Action (Interaksi Tong & Sampah + Inventory)
             if (keys.action && !actionTriggered && !player.isMoving) {
                 actionTriggered = true; let interacted = false;
 
+                // Cek Tong
                 for (let bin of bins) {
                     if (checkDistance(player.x, player.y, bin.px, bin.py) < 10) {
                         interacted = true;
-                        if (player.carrying === bin.type) { player.carrying = null; bin.active = true; } 
-                        else {
+                        if (player.carrying === bin.type) { 
+                            // Setor Sampah ke TPS
+                            totalCollected += player.inventory.length;
+                            player.inventory = []; // Kosongkan Ransel
+                            uiTrashCount.innerText = totalCollected; // Update UI
+
+                            player.carrying = null; bin.active = true; 
+                            showText("Disetor!", player.x, player.y);
+                        } else {
                             if (player.carrying !== null) {
                                 let oldBin = bins.find(b => b.type === player.carrying);
                                 if (oldBin) oldBin.active = true;
@@ -427,12 +383,18 @@
                     }
                 }
 
+                // Cek Sampah
                 if (!interacted) {
                     for (let item of itemsMap) {
                         if (item.active && checkDistance(player.x, player.y, item.x, item.y) < 10) {
                             interacted = true;
                             if (player.carrying === null) showText("Ambil tongnya dulu!", player.x, player.y);
-                            else if (player.carrying === item.type) { item.active = false; showText("Sip!", player.x, player.y); } 
+                            else if (player.carrying === item.type) { 
+                                // Simpan item ke inventori secara eksklusif
+                                player.inventory.push(item);
+                                item.active = false; 
+                                showText("Sip!", player.x, player.y); 
+                            } 
                             else showText("Jangan disatukan!", player.x, player.y);
                             break;
                         }
@@ -465,18 +427,18 @@
 
         if (!currentSprite.complete || currentSprite.naturalWidth === 0) currentSprite = assets.charIdle; 
 
-        // Render Kurori (Tidak digambar jika sedang nge-fade hitam penuh, memberi efek "menghilang")
+        // Render Kurori
         if (fadeAlpha < 1) {
             if (currentSprite.complete && currentSprite.naturalWidth !== 0) {
                 ctx.save(); 
                 if (!player.facingRight) {
-                    ctx.scale(-1, 1);
-                    ctx.drawImage(currentSprite, -player.x - TILE_SIZE, player.y, TILE_SIZE, TILE_SIZE);
+                    ctx.scale(-1, 1); ctx.drawImage(currentSprite, -player.x - TILE_SIZE, player.y, TILE_SIZE, TILE_SIZE);
                 } else { ctx.drawImage(currentSprite, player.x, player.y, TILE_SIZE, TILE_SIZE); }
                 ctx.restore();
             }
         }
 
+        // Teks Bantuan
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
             ctx.fillStyle = "white"; ctx.strokeStyle = "black"; ctx.lineWidth = 3;
@@ -485,7 +447,7 @@
             t.life--; if (t.life <= 0) floatingTexts.splice(i, 1);
         }
 
-        // Layer Fade/Crash
+        // Efek Tertabrak
         if (fadeAlpha > 0) {
             ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
