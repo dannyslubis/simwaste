@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Simulasi Sorting Sampah</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0; background-color: #111; display: flex; justify-content: center;
@@ -12,28 +13,29 @@
         }
         #game-container { position: relative; width: 100vw; max-width: 1024px; aspect-ratio: 16 / 9; }
         canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; background-color: #222; }
-        .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
         
-        /* Panel Status Baru */
-        .status-panel {
-            position: absolute; top: 5%; left: 5%; background: rgba(0, 0, 0, 0.7);
-            color: white; border: 2px solid white; padding: 5px 15px;
-            font-size: 20px; font-weight: bold; border-radius: 8px; text-transform: uppercase;
-        }
-
+        .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
         .dpad { position: absolute; left: 8%; bottom: 12%; width: 22%; max-width: 160px; aspect-ratio: 1; background: url('keywasd.png') no-repeat center/contain; opacity: 0.5; pointer-events: auto; }
         .d-btn { position: absolute; width: 33.33%; height: 33.33%; cursor: pointer; }
         .d-up { top: 0; left: 33.33%; } .d-down { bottom: 0; left: 33.33%; } .d-left { top: 33.33%; left: 0; } .d-right { top: 33.33%; right: 0; }
         .btn-action { position: absolute; right: 8%; bottom: 15%; width: 12%; max-width: 80px; aspect-ratio: 1; background: url('keyaction.png') no-repeat center/contain; opacity: 0.5; pointer-events: auto; cursor: pointer; }
         .btn-active { opacity: 0.8 !important; }
+
+        /* Overlay Animasi Tutorial (pointer-events: none agar klik tembus ke canvas) */
+        #tutorialOverlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10000;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <canvas id="gameCanvas" width="512" height="288"></canvas>
+    
+    <img id="tutorialOverlay" src="popuptutwas.gif" alt="Tutorial">
+
     <div class="ui-layer">
-        <div class="status-panel">Sampah di TPS: <span id="trash-count">0</span> / 16</div>
         <div class="dpad" id="dpad-container">
             <div class="d-btn d-up" id="btn-up"></div> <div class="d-btn d-down" id="btn-down"></div>
             <div class="d-btn d-left" id="btn-left"></div> <div class="d-btn d-right" id="btn-right"></div>
@@ -46,7 +48,10 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    const uiTrashCount = document.getElementById('trash-count');
+
+    // --- STATE MACHINE ---
+    const STATE = { PLAY: 0, EXIT_PROMPT: 1, HELP_PROMPT: 2 };
+    let currentState = STATE.PLAY;
 
     // --- MANAJEMEN ASET ---
     const assets = {
@@ -57,19 +62,27 @@
         wasa1: new Image(), wasa2: new Image(), wasa3: new Image(), wasa4: new Image(),
         wasb1: new Image(), wasb2: new Image(),
         wascarl1: new Image(), wascarl2: new Image(), wascarl3: new Image(), wascarl4: new Image(),
-        wascarr1: new Image(), wascarr2: new Image(), wascarr3: new Image(), wascarr4: new Image()
+        wascarr1: new Image(), wascarr2: new Image(), wascarr3: new Image(), wascarr4: new Image(),
+        
+        // Aset UI Baru
+        statwas: new Image(), statwaso: new Image(), statwasa: new Image(), statwasb: new Image(),
+        statwas1: new Image(), popupexit: new Image()
     };
     
     assets.bg.src = 'kanvaswas.png';
     assets.charIdle.src = 'waschar.png'; assets.charWalk.src = 'waschar.gif'; 
     assets.charO.src = 'wascharo.png'; assets.charA.src = 'waschara.png'; assets.charB.src = 'wascharb.png';
     assets.binO.src = 'waso.png'; assets.binA.src = 'wasa.png'; assets.binB.src = 'wasb.png';
-    
     assets.waso1.src = 'waso1.png'; assets.waso2.src = 'waso2.png'; assets.waso3.src = 'waso3.png'; assets.waso4.src = 'waso4.png';
     assets.wasa1.src = 'wasa1.png'; assets.wasa2.src = 'wasa2.png'; assets.wasa3.src = 'wasa3.png'; assets.wasa4.src = 'wasa4.png';
     assets.wasb1.src = 'wasb1.png'; assets.wasb2.src = 'wasb2.png';
     assets.wascarl1.src = 'wascarl1.png'; assets.wascarl2.src = 'wascarl2.png'; assets.wascarl3.src = 'wascarl3.png'; assets.wascarl4.src = 'wascarl4.png';
     assets.wascarr1.src = 'wascarr1.png'; assets.wascarr2.src = 'wascarr2.png'; assets.wascarr3.src = 'wascarr3.png'; assets.wascarr4.src = 'wascarr4.png';
+    
+    // Source UI Baru
+    assets.statwas.src = 'statwas.png'; assets.statwaso.src = 'statwaso.png';
+    assets.statwasa.src = 'statwasa.png'; assets.statwasb.src = 'statwasb.png';
+    assets.statwas1.src = 'statwas1.png'; assets.popupexit.src = 'popupexit.png';
 
     const TILE_SIZE = 32;
     function gridToPx(colStr, rowNum) { return { x: (colStr.charCodeAt(0) - 97) * TILE_SIZE, y: (rowNum - 1) * TILE_SIZE }; }
@@ -79,15 +92,14 @@
     let actionTriggered = false; let floatingTexts = [];
     let gameStartTime = null; let isCrashed = false; let crashTimer = 0; let fadeAlpha = 0;
     
-    // Total Tracker & Inventory System Baru
     let totalCollected = 0;
     const TOTAL_TRASH = 16;
+    let showWrongTrashAlert = 0; // Timer untuk statwas1.png
 
     let player = {
         x: gridToPx('f', 9).x, y: gridToPx('f', 9).y,
         targetX: gridToPx('f', 9).x, targetY: gridToPx('f', 9).y,
-        carrying: null, isMoving: false, facingRight: true,
-        inventory: [] // Array untuk menyimpan referensi item yang dipungut
+        carrying: null, isMoving: false, facingRight: true, inventory: []
     };
 
     let bins = [
@@ -97,16 +109,11 @@
     ];
 
     const trashData = [
-        { id: 'waso1', type: 'organik', img: assets.waso1, locs: ['m4'] },
-        { id: 'waso2', type: 'organik', img: assets.waso2, locs: ['a6','b6','h5','m9','o6'] },
-        { id: 'waso3', type: 'organik', img: assets.waso3, locs: ['m6'] },
-        { id: 'waso4', type: 'organik', img: assets.waso4, locs: ['n9'] },
-        { id: 'wasa1', type: 'anorganik', img: assets.wasa1, locs: ['e2','p9'] },
-        { id: 'wasa2', type: 'anorganik', img: assets.wasa2, locs: ['k6'] },
-        { id: 'wasa3', type: 'anorganik', img: assets.wasa3, locs: ['h3'] },
-        { id: 'wasa4', type: 'anorganik', img: assets.wasa4, locs: ['b4','d6'] },
-        { id: 'wasb1', type: 'b3', img: assets.wasb1, locs: ['p2'] },
-        { id: 'wasb2', type: 'b3', img: assets.wasb2, locs: ['a4'] }
+        { id: 'waso1', type: 'organik', img: assets.waso1, locs: ['m4'] }, { id: 'waso2', type: 'organik', img: assets.waso2, locs: ['a6','b6','h5','m9','o6'] },
+        { id: 'waso3', type: 'organik', img: assets.waso3, locs: ['m6'] }, { id: 'waso4', type: 'organik', img: assets.waso4, locs: ['n9'] },
+        { id: 'wasa1', type: 'anorganik', img: assets.wasa1, locs: ['e2','p9'] }, { id: 'wasa2', type: 'anorganik', img: assets.wasa2, locs: ['k6'] },
+        { id: 'wasa3', type: 'anorganik', img: assets.wasa3, locs: ['h3'] }, { id: 'wasa4', type: 'anorganik', img: assets.wasa4, locs: ['b4','d6'] },
+        { id: 'wasb1', type: 'b3', img: assets.wasb1, locs: ['p2'] }, { id: 'wasb2', type: 'b3', img: assets.wasb2, locs: ['a4'] }
     ];
 
     let itemsMap = [];
@@ -117,21 +124,15 @@
         });
     });
 
-    // --- SISTEM KENDARAAN ---
     let activeCars = [];
     const laneAtasY = gridToPx('a', 7).y; const laneBawahY = gridToPx('a', 8).y;
     const carSpawners = [
-        { img: assets.wascarl1, y: laneAtasY, baseSpeed: 3.5, interval: 30000, nextSpawn: 0 },
-        { img: assets.wascarl2, y: laneAtasY, baseSpeed: 3.0, interval: 25000, nextSpawn: 8000 },
-        { img: assets.wascarl3, y: laneAtasY, baseSpeed: 2.5, interval: 20000, nextSpawn: 16000 },
-        { img: assets.wascarl4, y: laneAtasY, baseSpeed: 3.0, interval: 40000, nextSpawn: 26000 },
-        { img: assets.wascarr1, y: laneBawahY, baseSpeed: -3.5, interval: 25000, nextSpawn: 0 },
-        { img: assets.wascarr2, y: laneBawahY, baseSpeed: -3.0, interval: 30000, nextSpawn: 10000 },
-        { img: assets.wascarr3, y: laneBawahY, baseSpeed: -2.5, interval: 20000, nextSpawn: 18000 },
-        { img: assets.wascarr4, y: laneBawahY, baseSpeed: -3.0, interval: 45000, nextSpawn: 28000 }
+        { img: assets.wascarl1, y: laneAtasY, baseSpeed: 3.5, interval: 30000, nextSpawn: 0 }, { img: assets.wascarl2, y: laneAtasY, baseSpeed: 3.0, interval: 25000, nextSpawn: 8000 },
+        { img: assets.wascarl3, y: laneAtasY, baseSpeed: 2.5, interval: 20000, nextSpawn: 16000 }, { img: assets.wascarl4, y: laneAtasY, baseSpeed: 3.0, interval: 40000, nextSpawn: 26000 },
+        { img: assets.wascarr1, y: laneBawahY, baseSpeed: -3.5, interval: 25000, nextSpawn: 0 }, { img: assets.wascarr2, y: laneBawahY, baseSpeed: -3.0, interval: 30000, nextSpawn: 10000 },
+        { img: assets.wascarr3, y: laneBawahY, baseSpeed: -2.5, interval: 20000, nextSpawn: 18000 }, { img: assets.wascarr4, y: laneBawahY, baseSpeed: -3.0, interval: 45000, nextSpawn: 28000 }
     ];
 
-    // --- COLLISION LOGIC ---
     function isSolid(x, y) {
         let col = Math.round(x / TILE_SIZE); let row = Math.round(y / TILE_SIZE);
         if (row === 0) return true; if (col === 15 && row === 3) return true; return false;
@@ -153,16 +154,12 @@
     function triggerCrash() {
         if (isCrashed) return;
         isCrashed = true; crashTimer = Date.now();
-        
         if (player.carrying !== null) {
-            let droppedType = player.carrying;
-            player.carrying = null;
+            let droppedType = player.carrying; player.carrying = null;
             let bin = bins.find(b => b.type === droppedType);
             if (bin) bin.active = true;
-
-            // Jika ada sampah yang diambil, keluarkan 1 item persis yang sama
             if (player.inventory.length > 0) {
-                let droppedItem = player.inventory.pop(); // Ambil item dari ransel
+                let droppedItem = player.inventory.pop();
                 spawnExactTrash(droppedItem);
             }
         }
@@ -183,23 +180,62 @@
         if (emptyTiles.length === 0) {
             for(let c=0; c<=15; c++) {
                 let px = c * TILE_SIZE; let py = 4 * TILE_SIZE;
-                if (!itemsMap.some(i => i.active && Math.abs(i.x - px) < 10 && Math.abs(i.y - py) < 10)) {
-                    emptyTiles.push({c:c, r:4});
-                }
+                if (!itemsMap.some(i => i.active && Math.abs(i.x - px) < 10 && Math.abs(i.y - py) < 10)) emptyTiles.push({c:c, r:4});
             }
         }
         if (emptyTiles.length > 0) {
             let randTile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
-            // Gunakan kembali objek asli, ubah posisi dan aktifkan
-            itemObj.x = randTile.c * TILE_SIZE;
-            itemObj.y = randTile.r * TILE_SIZE;
-            itemObj.active = true;
+            itemObj.x = randTile.c * TILE_SIZE; itemObj.y = randTile.r * TILE_SIZE; itemObj.active = true;
         }
     }
 
-    // --- KONTROL INPUT ---
+    // --- KONTROL INPUT & STATE MACHINE POINTER ---
+    canvas.addEventListener('pointerdown', (e) => {
+        // Normalisasi koordinat klik agar akurat meski kanvas di-scale CSS
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        e.stopPropagation(); 
+
+        if (currentState === STATE.PLAY) {
+            // Klik p1 (Tombol X) -> Buka Pop Up Keluar
+            if (x >= 480 && x <= 512 && y >= 0 && y <= 32) {
+                currentState = STATE.EXIT_PROMPT;
+                // Reset pergerakan player jika sedang jalan saat dipause
+                player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
+            }
+            // Klik o1/p2 (Tombol ?) -> Buka Pop Up Tutorial
+            else if (x >= 480 && x <= 512 && y >= 32 && y <= 64) {
+                currentState = STATE.HELP_PROMPT;
+                document.getElementById('tutorialOverlay').style.display = 'block';
+                player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
+            }
+        } 
+        else if (currentState === STATE.EXIT_PROMPT) {
+            // Logika tombol Yes/No di dalam popupexit.png
+            if (x >= 160 && x <= 256 && y >= 160 && y <= 192) {
+                console.log("Fungsi Keluar dari game dieksekusi!");
+                alert("Simulasi ditutup. Kembali ke Mode VN/Menu.");
+            }
+            else if (x >= 256 && x <= 352 && y >= 160 && y <= 192) {
+                currentState = STATE.PLAY; // Batal keluar
+            }
+        }
+        else if (currentState === STATE.HELP_PROMPT) {
+            // Tutup tutorial HANYA jika pemain menekan tombol X di koordinat p1
+            if (x >= 480 && x <= 512 && y >= 0 && y <= 32) {
+                currentState = STATE.PLAY;
+                document.getElementById('tutorialOverlay').style.display = 'none';
+            }
+        }
+    });
+
     function setKey(k, val) { keys[k] = val; }
     window.addEventListener('keydown', (e) => {
+        if (currentState !== STATE.PLAY) return; // Kunci keyboard saat di menu
         if (e.key === 'w' || e.key === 'ArrowUp') setKey('w', true);
         if (e.key === 's' || e.key === 'ArrowDown') setKey('s', true);
         if (e.key === 'a' || e.key === 'ArrowLeft') setKey('a', true);
@@ -214,20 +250,19 @@
         if (e.key === ' ' || e.key === 'Enter') { setKey('action', false); actionTriggered = false; }
     });
     
-    // ... [Event Listeners UI Mouse/Touch sama seperti sebelumnya] ...
     const dpadZones = [ { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' }, { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' } ];
     dpadZones.forEach(zone => {
         let el = document.getElementById(zone.id);
-        el.addEventListener('touchstart', (e) => { e.preventDefault(); setKey(zone.key, true); });
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); if(currentState === STATE.PLAY) setKey(zone.key, true); });
         el.addEventListener('touchend', (e) => { e.preventDefault(); setKey(zone.key, false); });
-        el.addEventListener('mousedown', (e) => { e.preventDefault(); setKey(zone.key, true); });
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); if(currentState === STATE.PLAY) setKey(zone.key, true); });
         el.addEventListener('mouseup', (e) => { e.preventDefault(); setKey(zone.key, false); });
         el.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey(zone.key, false); });
     });
     let btnAct = document.getElementById('btn-action');
-    btnAct.addEventListener('touchstart', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
+    btnAct.addEventListener('touchstart', (e) => { e.preventDefault(); if(currentState === STATE.PLAY) { setKey('action', true); btnAct.classList.add('btn-active'); } });
     btnAct.addEventListener('touchend', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
-    btnAct.addEventListener('mousedown', (e) => { e.preventDefault(); setKey('action', true); btnAct.classList.add('btn-active'); });
+    btnAct.addEventListener('mousedown', (e) => { e.preventDefault(); if(currentState === STATE.PLAY) { setKey('action', true); btnAct.classList.add('btn-active'); } });
     btnAct.addEventListener('mouseup', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
     btnAct.addEventListener('mouseleave', (e) => { e.preventDefault(); setKey('action', false); actionTriggered = false; btnAct.classList.remove('btn-active'); });
 
@@ -239,20 +274,10 @@
         if (!gameStartTime) gameStartTime = Date.now();
         let now = Date.now() - gameStartTime; let realNow = Date.now();
 
-        // 1. Logika Fade & Reset Crash
-        if (isCrashed) {
-            let elapsed = realNow - crashTimer;
-            if (elapsed < 500) fadeAlpha = elapsed / 500;
-            else if (elapsed < 2500) fadeAlpha = 1;
-            else if (elapsed < 3000) fadeAlpha = 1 - ((elapsed - 2500) / 500);
-            else {
-                isCrashed = false; fadeAlpha = 0;
-                player.x = player.targetX = gridToPx('f', 9).x;
-                player.y = player.targetY = gridToPx('f', 9).y;
-            }
-        }
+        // Mengurangi Timer UI Wrong Trash
+        if (showWrongTrashAlert > 0) showWrongTrashAlert--;
 
-        // 2. Spawn Mobil Anti-Burst
+        // Mobil Tetap Bergerak walau sedang di menu (Dunia tetap hidup)
         carSpawners.forEach(s => {
             if (now >= s.nextSpawn) {
                 activeCars.push({ img: s.img, x: s.baseSpeed > 0 ? -64 : canvas.width, y: s.y, baseSpeed: s.baseSpeed, currentSpeed: s.baseSpeed });
@@ -262,28 +287,23 @@
 
         let onZebra = checkOnZebraCross(player.x, player.y) && !isCrashed;
 
-        // 3. Logika Pergerakan Mobil & Strict Stop + Macet 96px
         for (let i = activeCars.length - 1; i >= 0; i--) {
             let car = activeCars[i];
             let isStoppedByZebra = false;
 
-            // A. Strict Stop di Garis Zebra Cross (Pixel 160 & 224)
             if (onZebra) {
                 if (car.baseSpeed > 0) {
                     let front = car.x + 64;
-                    if (front <= 160 && front + car.baseSpeed >= 160) {
-                        car.x = 160 - 64; isStoppedByZebra = true;
-                    } else if (front === 160) isStoppedByZebra = true;
+                    if (front <= 160 && front + car.baseSpeed >= 160) { car.x = 160 - 64; isStoppedByZebra = true; } 
+                    else if (front === 160) isStoppedByZebra = true;
                 } else {
                     let front = car.x;
-                    if (front >= 224 && front + car.baseSpeed <= 224) {
-                        car.x = 224; isStoppedByZebra = true;
-                    } else if (front === 224) isStoppedByZebra = true;
+                    if (front >= 224 && front + car.baseSpeed <= 224) { car.x = 224; isStoppedByZebra = true; } 
+                    else if (front === 224) isStoppedByZebra = true;
                 }
             }
             car.currentSpeed = isStoppedByZebra ? 0 : car.baseSpeed;
 
-            // B. Reaksi Berantai (Jarak Wajib 96px)
             let carAhead = null; let minDx = Infinity;
             for (let other of activeCars) {
                 if (other === car || other.y !== car.y) continue;
@@ -297,53 +317,53 @@
             }
 
             if (carAhead && minDx <= 96) {
-                if (Math.abs(car.currentSpeed) > Math.abs(carAhead.currentSpeed)) {
-                    car.currentSpeed = carAhead.currentSpeed;
-                }
-                // Paksa snap agar tidak ada selip walau 1 pixel
-                if (car.baseSpeed > 0 && car.x + car.currentSpeed > carAhead.x - 96) {
-                    car.x = carAhead.x - 96; car.currentSpeed = 0;
-                } else if (car.baseSpeed < 0 && car.x + car.currentSpeed < carAhead.x + 96) {
-                    car.x = carAhead.x + 96; car.currentSpeed = 0;
-                }
+                if (Math.abs(car.currentSpeed) > Math.abs(carAhead.currentSpeed)) { car.currentSpeed = carAhead.currentSpeed; }
+                if (car.baseSpeed > 0 && car.x + car.currentSpeed > carAhead.x - 96) { car.x = carAhead.x - 96; car.currentSpeed = 0; } 
+                else if (car.baseSpeed < 0 && car.x + car.currentSpeed < carAhead.x + 96) { car.x = carAhead.x + 96; car.currentSpeed = 0; }
             }
 
             car.x += car.currentSpeed;
 
-            // C. Cek Tabrakan dengan Karakter
-            if (!isCrashed && !onZebra) {
+            // Cek Tabrakan HANYA jika sedang PLAY
+            if (currentState === STATE.PLAY && !isCrashed && !onZebra) {
                 if (player.x + 24 > car.x && player.x + 8 < car.x + 64 &&
                     player.y + 24 > car.y && player.y + 8 < car.y + 32) {
                     triggerCrash();
                 }
             }
 
-            // Hapus Mobil
             if (car.baseSpeed > 0 && car.x > canvas.width + 64) activeCars.splice(i, 1);
             else if (car.baseSpeed < 0 && car.x < -128) activeCars.splice(i, 1);
         }
 
-        // 4. Logika Gerak Player
+        // Segala Hal Terkait Input & Player Berhenti Jika Bukan Mode PLAY
+        if (currentState !== STATE.PLAY) return;
+
+        // Logika Fade & Reset Crash
+        if (isCrashed) {
+            let elapsed = realNow - crashTimer;
+            if (elapsed < 500) fadeAlpha = elapsed / 500;
+            else if (elapsed < 2500) fadeAlpha = 1;
+            else if (elapsed < 3000) fadeAlpha = 1 - ((elapsed - 2500) / 500);
+            else {
+                isCrashed = false; fadeAlpha = 0;
+                player.x = player.targetX = gridToPx('f', 9).x;
+                player.y = player.targetY = gridToPx('f', 9).y;
+            }
+        }
+
         if (!isCrashed) {
             let currentSpeed = player.carrying !== null ? 2.0 : 2.5;
 
             if (!player.isMoving) {
                 if (keys.w && player.y > 0) { 
-                    if (!hasTopWall(player.x, player.y) && !isSolid(player.x, player.y - TILE_SIZE)) {
-                        player.targetY -= TILE_SIZE; player.isMoving = true; 
-                    }
+                    if (!hasTopWall(player.x, player.y) && !isSolid(player.x, player.y - TILE_SIZE)) { player.targetY -= TILE_SIZE; player.isMoving = true; }
                 } else if (keys.s && player.y < canvas.height - TILE_SIZE) { 
-                    if (!isSolid(player.x, player.y + TILE_SIZE) && !hasTopWall(player.x, player.y + TILE_SIZE)) {
-                        player.targetY += TILE_SIZE; player.isMoving = true; 
-                    }
+                    if (!isSolid(player.x, player.y + TILE_SIZE) && !hasTopWall(player.x, player.y + TILE_SIZE)) { player.targetY += TILE_SIZE; player.isMoving = true; }
                 } else if (keys.a && player.x > 0) { 
-                    if (!isSolid(player.x - TILE_SIZE, player.y)) {
-                        player.targetX -= TILE_SIZE; player.isMoving = true; player.facingRight = false;
-                    }
+                    if (!isSolid(player.x - TILE_SIZE, player.y)) { player.targetX -= TILE_SIZE; player.isMoving = true; player.facingRight = false; }
                 } else if (keys.d && player.x < canvas.width - TILE_SIZE) { 
-                    if (!isSolid(player.x + TILE_SIZE, player.y)) {
-                        player.targetX += TILE_SIZE; player.isMoving = true; player.facingRight = true;
-                    }
+                    if (!isSolid(player.x + TILE_SIZE, player.y)) { player.targetX += TILE_SIZE; player.isMoving = true; player.facingRight = true; }
                 }
             } else {
                 let dx = player.targetX - player.x; let dy = player.targetY - player.y;
@@ -356,20 +376,15 @@
                 if (player.x === player.targetX && player.y === player.targetY) player.isMoving = false;
             }
 
-            // 5. Logika Action (Interaksi Tong & Sampah + Inventory)
             if (keys.action && !actionTriggered && !player.isMoving) {
                 actionTriggered = true; let interacted = false;
 
-                // Cek Tong
                 for (let bin of bins) {
                     if (checkDistance(player.x, player.y, bin.px, bin.py) < 10) {
                         interacted = true;
                         if (player.carrying === bin.type) { 
-                            // Setor Sampah ke TPS
                             totalCollected += player.inventory.length;
-                            player.inventory = []; // Kosongkan Ransel
-                            uiTrashCount.innerText = totalCollected; // Update UI
-
+                            player.inventory = [];
                             player.carrying = null; bin.active = true; 
                             showText("Disetor!", player.x, player.y);
                         } else {
@@ -383,19 +398,19 @@
                     }
                 }
 
-                // Cek Sampah
                 if (!interacted) {
                     for (let item of itemsMap) {
                         if (item.active && checkDistance(player.x, player.y, item.x, item.y) < 10) {
                             interacted = true;
-                            if (player.carrying === null) showText("Ambil tongnya dulu!", player.x, player.y);
-                            else if (player.carrying === item.type) { 
-                                // Simpan item ke inventori secara eksklusif
-                                player.inventory.push(item);
-                                item.active = false; 
+                            if (player.carrying === null) {
+                                showText("Ambil tongnya dulu!", player.x, player.y);
+                            } else if (player.carrying === item.type) { 
+                                player.inventory.push(item); item.active = false; 
                                 showText("Sip!", player.x, player.y); 
-                            } 
-                            else showText("Jangan disatukan!", player.x, player.y);
+                            } else {
+                                showWrongTrashAlert = 60; // Tampilkan statwas1.png selama 1 detik
+                                showText("Jangan disatukan!", player.x, player.y);
+                            }
                             break;
                         }
                     }
@@ -414,7 +429,6 @@
         itemsMap.forEach(item => { if (item.active && item.img.complete) ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE); });
         bins.forEach(bin => { if (bin.active && bin.img.complete) ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE); });
 
-        // Render Mobil
         activeCars.forEach(car => { if (car.img.complete && car.img.naturalWidth !== 0) ctx.drawImage(car.img, car.x, car.y, 64, 32); });
 
         let currentSprite = assets.charIdle;
@@ -427,7 +441,6 @@
 
         if (!currentSprite.complete || currentSprite.naturalWidth === 0) currentSprite = assets.charIdle; 
 
-        // Render Kurori
         if (fadeAlpha < 1) {
             if (currentSprite.complete && currentSprite.naturalWidth !== 0) {
                 ctx.save(); 
@@ -438,7 +451,24 @@
             }
         }
 
-        // Teks Bantuan
+        // --- LAYER UI STATUS ---
+        if (assets.statwas.complete) ctx.drawImage(assets.statwas, 0, 0, 512, 288);
+        
+        // Tampilkan Indikator Tong Saat Ini
+        if (player.carrying === 'organik' && assets.statwaso.complete) ctx.drawImage(assets.statwaso, 0, 0, 512, 288);
+        else if (player.carrying === 'anorganik' && assets.statwasa.complete) ctx.drawImage(assets.statwasa, 0, 0, 512, 288);
+        else if (player.carrying === 'b3' && assets.statwasb.complete) ctx.drawImage(assets.statwasb, 0, 0, 512, 288);
+        
+        // Peringatan Tong Salah
+        if (showWrongTrashAlert > 0 && assets.statwas1.complete) ctx.drawImage(assets.statwas1, 0, 0, 512, 288);
+
+        // Teks Hitungan Sampah (Render di area j1-k1 / x:288-352)
+        ctx.fillStyle = "white";
+        ctx.font = "bold 22px 'VT323', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(`${totalCollected} / 16`, 320, 24);
+
+        // Teks Mengambang dalam Game
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
             ctx.fillStyle = "white"; ctx.strokeStyle = "black"; ctx.lineWidth = 3;
@@ -447,14 +477,18 @@
             t.life--; if (t.life <= 0) floatingTexts.splice(i, 1);
         }
 
-        // Efek Tertabrak
-        if (fadeAlpha > 0) {
-            ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Efek Tertabrak (Hanya saat mode PLAY)
+        if (fadeAlpha > 0 && currentState === STATE.PLAY) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (fadeAlpha === 1) {
                 ctx.fillStyle = "white"; ctx.font = "bold 24px 'VT323', monospace, sans-serif"; ctx.textAlign = "center";
                 ctx.fillText("AWAS KENDARAAN!", canvas.width / 2, canvas.height / 2);
             }
+        }
+
+        // --- LAYER POP-UP PROMPT ---
+        if (currentState === STATE.EXIT_PROMPT && assets.popupexit.complete) {
+            ctx.drawImage(assets.popupexit, 0, 0, 512, 288);
         }
     }
 
