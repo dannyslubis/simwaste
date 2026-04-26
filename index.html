@@ -191,7 +191,6 @@
 
     // --- KONTROL INPUT & STATE MACHINE POINTER ---
     canvas.addEventListener('pointerdown', (e) => {
-        // Normalisasi koordinat klik agar akurat meski kanvas di-scale CSS
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
@@ -202,13 +201,14 @@
 
         if (currentState === STATE.PLAY) {
             // Klik p1 (Tombol X) -> Buka Pop Up Keluar
+            // Koordinat: x 480-512, y 0-32
             if (x >= 480 && x <= 512 && y >= 0 && y <= 32) {
                 currentState = STATE.EXIT_PROMPT;
-                // Reset pergerakan player jika sedang jalan saat dipause
                 player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
             }
-            // Klik o1/p2 (Tombol ?) -> Buka Pop Up Tutorial
-            else if (x >= 480 && x <= 512 && y >= 32 && y <= 64) {
+            // Klik o1 (Tombol ?) -> Buka Pop Up Tutorial
+            // Koordinat: x 448-480, y 0-32
+            else if (x >= 448 && x <= 480 && y >= 0 && y <= 32) {
                 currentState = STATE.HELP_PROMPT;
                 document.getElementById('tutorialOverlay').style.display = 'block';
                 player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
@@ -274,10 +274,8 @@
         if (!gameStartTime) gameStartTime = Date.now();
         let now = Date.now() - gameStartTime; let realNow = Date.now();
 
-        // Mengurangi Timer UI Wrong Trash
         if (showWrongTrashAlert > 0) showWrongTrashAlert--;
 
-        // Mobil Tetap Bergerak walau sedang di menu (Dunia tetap hidup)
         carSpawners.forEach(s => {
             if (now >= s.nextSpawn) {
                 activeCars.push({ img: s.img, x: s.baseSpeed > 0 ? -64 : canvas.width, y: s.y, baseSpeed: s.baseSpeed, currentSpeed: s.baseSpeed });
@@ -336,10 +334,8 @@
             else if (car.baseSpeed < 0 && car.x < -128) activeCars.splice(i, 1);
         }
 
-        // Segala Hal Terkait Input & Player Berhenti Jika Bukan Mode PLAY
         if (currentState !== STATE.PLAY) return;
 
-        // Logika Fade & Reset Crash
         if (isCrashed) {
             let elapsed = realNow - crashTimer;
             if (elapsed < 500) fadeAlpha = elapsed / 500;
@@ -454,12 +450,10 @@
         // --- LAYER UI STATUS ---
         if (assets.statwas.complete) ctx.drawImage(assets.statwas, 0, 0, 512, 288);
         
-        // Tampilkan Indikator Tong Saat Ini
         if (player.carrying === 'organik' && assets.statwaso.complete) ctx.drawImage(assets.statwaso, 0, 0, 512, 288);
         else if (player.carrying === 'anorganik' && assets.statwasa.complete) ctx.drawImage(assets.statwasa, 0, 0, 512, 288);
         else if (player.carrying === 'b3' && assets.statwasb.complete) ctx.drawImage(assets.statwasb, 0, 0, 512, 288);
         
-        // Peringatan Tong Salah
         if (showWrongTrashAlert > 0 && assets.statwas1.complete) ctx.drawImage(assets.statwas1, 0, 0, 512, 288);
 
         // Teks Hitungan Sampah (Render di area j1-k1 / x:288-352)
@@ -468,16 +462,16 @@
         ctx.textAlign = "center";
         ctx.fillText(`${totalCollected} / 16`, 320, 24);
 
-        // Teks Mengambang dalam Game
+        // Teks Mengambang (Peringatan Aksi)
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let t = floatingTexts[i];
-            ctx.fillStyle = "white"; ctx.strokeStyle = "black"; ctx.lineWidth = 3;
-            ctx.font = "bold 14px 'VT323', monospace, sans-serif"; ctx.textAlign = "center";
-            ctx.strokeText(t.text, t.x, t.y - (60 - t.life) * 0.3); ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
+            ctx.fillStyle = "white"; 
+            ctx.font = "bold 14px 'VT323', monospace, sans-serif"; 
+            ctx.textAlign = "center";
+            ctx.fillText(t.text, t.x, t.y - (60 - t.life) * 0.3);
             t.life--; if (t.life <= 0) floatingTexts.splice(i, 1);
         }
 
-        // Efek Tertabrak (Hanya saat mode PLAY)
         if (fadeAlpha > 0 && currentState === STATE.PLAY) {
             ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (fadeAlpha === 1) {
