@@ -47,11 +47,9 @@
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
-    // Element HTML untuk D-Pad & Tombol (Sangat penting agar tidak error!)
     const dpadContainer = document.getElementById('dpad-container');
     const btnAction = document.getElementById('btn-action');
 
-    // --- STATE MACHINE ---
     const STATE = { PLAY: 0, EXIT_PROMPT: 1, HELP_PROMPT: 2, ENDING_SEQUENCE: 3, VN_MODE: 4 };
     let currentState = STATE.PLAY;
     let previousState = STATE.PLAY; 
@@ -200,7 +198,7 @@
         }
     }
 
-    // --- KONTROL INPUT & STATE MACHINE POINTER ---
+    // --- KONTROL INPUT ---
     canvas.addEventListener('pointerdown', (e) => {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -210,19 +208,16 @@
         e.stopPropagation(); 
 
         if (currentState === STATE.PLAY) {
-            // N1 (Panggil Truk)
             if (totalCollected >= TOTAL_TRASH && x >= 416 && x <= 448 && y >= 0 && y <= 32) {
                 currentState = STATE.ENDING_SEQUENCE;
                 endTimer = Date.now(); endPhase = 0; activeCars = [];
                 player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
                 return;
             }
-            // P1 (Exit Normal)
             if (x >= 480 && x <= 512 && y >= 0 && y <= 32) {
                 previousState = STATE.PLAY; currentState = STATE.EXIT_PROMPT; 
                 player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
             }
-            // O1 (Tutorial)
             else if (x >= 448 && x <= 480 && y >= 0 && y <= 32) {
                 currentState = STATE.HELP_PROMPT; document.getElementById('tutorialOverlay').style.display = 'block';
                 player.isMoving = false; player.x = player.targetX; player.y = player.targetY;
@@ -233,7 +228,7 @@
                 alert("Simulasi ditutup. Kembali ke Menu Utama.");
             }
             else if (x >= 256 && x <= 352 && y >= 160 && y <= 192) {
-                currentState = previousState; // Balik ke Play atau VN
+                currentState = previousState; 
             }
         }
         else if (currentState === STATE.HELP_PROMPT) {
@@ -252,7 +247,7 @@
                 // Skip (o8)
                 else if (x >= 448 && x <= 480 && y >= 224 && y <= 256) { vnPhase = 2; vnTimer = Date.now(); }
             } else if (vnPhase === 2) {
-                // Quest Done (g8-j8)
+                // Quest Done
                 if (x >= 192 && x <= 320 && y >= 224 && y <= 256) {
                     alert("Simulasi Berhasil Diselesaikan! Kembali ke Menu.");
                 }
@@ -280,7 +275,6 @@
         if (e.key === ' ' || e.key === 'Enter') { setKey('action', false); actionTriggered = false; }
     });
     
-    // --- PENYELESAIAN BUG TYPO (Gunakan btnAction dengan benar) ---
     const dpadZones = [ { id: 'btn-up', key: 'w' }, { id: 'btn-down', key: 's' }, { id: 'btn-left', key: 'a' }, { id: 'btn-right', key: 'd' } ];
     dpadZones.forEach(zone => {
         let el = document.getElementById(zone.id);
@@ -300,18 +294,15 @@
     function showText(text, x, y) { floatingTexts.push({ text: text, x: x + 16, y: y, life: 60 }); }
     function checkDistance(x1, y1, x2, y2) { return Math.sqrt(Math.pow((x1+16) - (x2+16), 2) + Math.pow((y1+16) - (y2+16), 2)); }
 
-    // --- UPDATE LOOP ---
     function update() {
         if (!gameStartTime) gameStartTime = Date.now();
         let now = Date.now() - gameStartTime; let realNow = Date.now();
 
-        // SEMBUNYIKAN UI HTML JIKA BUKAN MODE PLAY
         dpadContainer.style.display = (currentState === STATE.PLAY) ? 'block' : 'none';
         btnAction.style.display = (currentState === STATE.PLAY) ? 'block' : 'none';
 
         if (showWrongTrashAlert > 0) showWrongTrashAlert--;
 
-        // ENDING SEQUENCE
         if (currentState === STATE.ENDING_SEQUENCE) {
             let elapsed = realNow - endTimer;
             if (endPhase === 0 && elapsed > 3000) { endPhase = 1; }
@@ -333,7 +324,6 @@
             return;
         }
 
-        // VN MODE
         if (currentState === STATE.VN_MODE || (currentState === STATE.EXIT_PROMPT && previousState === STATE.VN_MODE)) {
             if (currentState === STATE.VN_MODE) {
                 let elapsed = realNow - vnTimer;
@@ -342,7 +332,6 @@
             return;
         }
 
-        // NORMAL PLAY
         if (currentState !== STATE.PLAY) return;
 
         carSpawners.forEach(s => {
@@ -405,7 +394,7 @@
         }
 
         if (!isCrashed) {
-            let currentSpeed = player.carrying !== null ? 2.0 : 2.5;
+            let currentSpeed = player.carrying !== null ? 4.0 : 2.5;
 
             if (!player.isMoving) {
                 if (keys.w && player.y > 0) { if (!hasTopWall(player.x, player.y) && !isSolid(player.x, player.y - TILE_SIZE)) { player.targetY -= TILE_SIZE; player.isMoving = true; } }
@@ -459,24 +448,22 @@
 
         // 1. RENDER VN MODE ATAU POPUP DI ATAS VN
         if (currentState === STATE.VN_MODE || (currentState === STATE.EXIT_PROMPT && previousState === STATE.VN_MODE)) {
-            if (assets.kanvaswas2.complete) ctx.drawImage(assets.kanvaswas2, 0, 0, 512, 288);
+            if (assets.kanvaswas2.complete && assets.kanvaswas2.naturalWidth !== 0) ctx.drawImage(assets.kanvaswas2, 0, 0, 512, 288);
             
             if (vnPhase === 0 || vnPhase === 1) {
                 ctx.globalAlpha = (vnPhase === 0) ? 1.0 : 0.5;
-                if (assets.wasnat_cel.complete) ctx.drawImage(assets.wasnat_cel, 0, 0, 512, 288);
+                if (assets.wasnat_cel.complete && assets.wasnat_cel.naturalWidth !== 0) ctx.drawImage(assets.wasnat_cel, 0, 0, 512, 288);
                 
                 ctx.globalAlpha = (vnPhase === 1) ? 1.0 : 0.5;
-                if (assets.waskur_vic.complete) ctx.drawImage(assets.waskur_vic, 0, 0, 512, 288);
+                if (assets.waskur_vic.complete && assets.waskur_vic.naturalWidth !== 0) ctx.drawImage(assets.waskur_vic, 0, 0, 512, 288);
 
-                // Opacity Textbox 70%
                 ctx.globalAlpha = 0.7;
-                if (assets.txtbox.complete) ctx.drawImage(assets.txtbox, 0, 0, 512, 288);
+                if (assets.txtbox.complete && assets.txtbox.naturalWidth !== 0) ctx.drawImage(assets.txtbox, 0, 0, 512, 288);
                 ctx.globalAlpha = 1.0; 
 
-                if (assets.keynextskip.complete) ctx.drawImage(assets.keynextskip, 0, 0, 512, 288);
+                if (assets.keynextskip.complete && assets.keynextskip.naturalWidth !== 0) ctx.drawImage(assets.keynextskip, 0, 0, 512, 288);
 
-                // Render Teks Dialog (Di dalam batas B7-N8)
-                ctx.font = "20px 'VT323', monospace, sans-serif"; 
+                ctx.font = "22px 'VT323', monospace, sans-serif"; 
                 ctx.textAlign = "left";
                 
                 if (vnPhase === 0) {
@@ -489,23 +476,22 @@
                     ctx.fillText("sekarang!", 48, 256);
                 }
             } else if (vnPhase === 2) {
-                if (assets.keyquestdone.complete) ctx.drawImage(assets.keyquestdone, 0, 0, 512, 288);
+                if (assets.keyquestdone.complete && assets.keyquestdone.naturalWidth !== 0) ctx.drawImage(assets.keyquestdone, 0, 0, 512, 288);
             }
 
-            // Tombol Keluar untuk VN Mode
-            if (assets.keyexit.complete) ctx.drawImage(assets.keyexit, 0, 0, 512, 288);
+            if (assets.keyexit.complete && assets.keyexit.naturalWidth !== 0) ctx.drawImage(assets.keyexit, 0, 0, 512, 288);
         }
         
         // 2. RENDER SIMULASI
         else if (currentState === STATE.PLAY || currentState === STATE.ENDING_SEQUENCE || (currentState === STATE.EXIT_PROMPT && previousState === STATE.PLAY)) {
-            if (assets.bg.complete) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
-            itemsMap.forEach(item => { if (item.active && item.img.complete) ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE); });
-            bins.forEach(bin => { if (bin.active && bin.img.complete) ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE); });
+            if (assets.bg.complete && assets.bg.naturalWidth !== 0) ctx.drawImage(assets.bg, 0, 0, canvas.width, canvas.height);
+            itemsMap.forEach(item => { if (item.active && item.img.complete && item.img.naturalWidth !== 0) ctx.drawImage(item.img, item.x, item.y, TILE_SIZE, TILE_SIZE); });
+            bins.forEach(bin => { if (bin.active && bin.img.complete && bin.img.naturalWidth !== 0) ctx.drawImage(bin.img, bin.px, bin.py, TILE_SIZE, TILE_SIZE); });
 
             if (currentState === STATE.ENDING_SEQUENCE && endPhase >= 1) {
-                if (assets.wastruckr.complete) ctx.drawImage(assets.wastruckr, truckEnd.x, truckEnd.y, truckEnd.width, truckEnd.height);
+                if (assets.wastruckr.complete && assets.wastruckr.naturalWidth !== 0) ctx.drawImage(assets.wastruckr, truckEnd.x, truckEnd.y, truckEnd.width, truckEnd.height);
             }
-            if (natoriSpawned && assets.wasnar.complete) {
+            if (natoriSpawned && assets.wasnar.complete && assets.wasnar.naturalWidth !== 0) {
                 ctx.drawImage(assets.wasnar, 32, 256, 32, 32);
             }
 
@@ -531,13 +517,13 @@
                 }
             }
 
-            if (assets.statwas.complete) ctx.drawImage(assets.statwas, 0, 0, 512, 288);
-            if (player.carrying === 'organik' && assets.statwaso.complete) ctx.drawImage(assets.statwaso, 0, 0, 512, 288);
-            else if (player.carrying === 'anorganik' && assets.statwasa.complete) ctx.drawImage(assets.statwasa, 0, 0, 512, 288);
-            else if (player.carrying === 'b3' && assets.statwasb.complete) ctx.drawImage(assets.statwasb, 0, 0, 512, 288);
-            if (showWrongTrashAlert > 0 && assets.statwas1.complete) ctx.drawImage(assets.statwas1, 0, 0, 512, 288);
+            if (assets.statwas.complete && assets.statwas.naturalWidth !== 0) ctx.drawImage(assets.statwas, 0, 0, 512, 288);
+            if (player.carrying === 'organik' && assets.statwaso.complete && assets.statwaso.naturalWidth !== 0) ctx.drawImage(assets.statwaso, 0, 0, 512, 288);
+            else if (player.carrying === 'anorganik' && assets.statwasa.complete && assets.statwasa.naturalWidth !== 0) ctx.drawImage(assets.statwasa, 0, 0, 512, 288);
+            else if (player.carrying === 'b3' && assets.statwasb.complete && assets.statwasb.naturalWidth !== 0) ctx.drawImage(assets.statwasb, 0, 0, 512, 288);
+            if (showWrongTrashAlert > 0 && assets.statwas1.complete && assets.statwas1.naturalWidth !== 0) ctx.drawImage(assets.statwas1, 0, 0, 512, 288);
             
-            if (totalCollected >= TOTAL_TRASH && assets.statwasx.complete) ctx.drawImage(assets.statwasx, 0, 0, 512, 288);
+            if (totalCollected >= TOTAL_TRASH && assets.statwasx.complete && assets.statwasx.naturalWidth !== 0) ctx.drawImage(assets.statwasx, 0, 0, 512, 288);
 
             ctx.fillStyle = "white"; ctx.font = "22px 'VT323', monospace"; ctx.textAlign = "center";
             ctx.fillText(`${totalCollected} / 16`, 320, 24);
@@ -560,10 +546,10 @@
             }
         }
 
-        // 3. LAYER POP-UP EXIT PROMPT (Di atas segalanya)
+        // 3. LAYER POP-UP EXIT PROMPT
         if (currentState === STATE.EXIT_PROMPT) {
             ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            if (assets.popupexit.complete) ctx.drawImage(assets.popupexit, 0, 0, 512, 288);
+            if (assets.popupexit.complete && assets.popupexit.naturalWidth !== 0) ctx.drawImage(assets.popupexit, 0, 0, 512, 288);
         }
     }
 
